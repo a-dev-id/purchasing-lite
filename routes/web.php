@@ -228,6 +228,9 @@ Route::prefix('purchasing-lite')->name('purchasing-lite.')->group(function () {
     Route::post('/purchase-requests/{purchaseRequest}/gm/split-approve', [PurchaseRequestGmController::class, 'splitApprove'])
         ->name('purchase-requests.gm.split-approve');
 
+    Route::post('/purchase-requests/{purchaseRequest}/gm/save-quantities', [PurchaseRequestGmController::class, 'saveQuantities'])
+        ->name('purchase-requests.gm.save-quantities');
+
     Route::post('/purchase-requests/{purchaseRequest}/gm/return-to-cost-control', [PurchaseRequestGmController::class, 'returnToCostControl'])
         ->name('purchase-requests.gm.return-to-cost-control');
 

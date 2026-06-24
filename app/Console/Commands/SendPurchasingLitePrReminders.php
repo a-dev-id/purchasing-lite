@@ -15,7 +15,6 @@ class SendPurchasingLitePrReminders extends Command
     private array $stepRoles = [
         'purchasing' => ['purchasing'],
         'cost_control' => ['cost_control'],
-        'gm' => ['gm'],
         'owner' => ['owner'],
         'financial_controller' => ['financial_controller'],
     ];
@@ -69,12 +68,15 @@ class SendPurchasingLitePrReminders extends Command
                         $emailService->sendToRoles(
                             purchaseRequest: $purchaseRequest,
                             roles: $roles,
-                            subject: '[Reminder] PR waiting for ' . $this->stepLabel($step) . ' - ' . $this->prNumber($purchaseRequest),
+                            subject: $step === 'owner'
+                                ? 'PR Waiting for OR Approval'
+                                : '[Reminder] PR waiting for ' . $this->stepLabel($step) . ' - ' . $this->prNumber($purchaseRequest),
                             title: 'PR Reminder',
                             messageText: $this->messageText($purchaseRequest, $step, $intervalDays, $stuckSince),
                             buttonLabel: 'Open PR',
                             buttonUrl: $this->buttonUrl($purchaseRequest, $step),
-                            remarks: 'This reminder is sent automatically based on PR priority.'
+                            remarks: 'This reminder is sent automatically based on PR priority.',
+                            threadKey: $step === 'owner' ? 'purchasing-lite-or-approval' : null
                         );
 
                         $purchaseRequest->forceFill([

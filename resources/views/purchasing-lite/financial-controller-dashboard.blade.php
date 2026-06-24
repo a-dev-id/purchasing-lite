@@ -298,30 +298,30 @@ return null;
         </h3>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-xs">
+    <div class="max-h-[75vh] overflow-auto">
+        <table class="min-w-[1900px] border-collapse text-sm">
             <thead>
                 <tr class="bg-slate-100">
-                    <th class="w-12 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">No</th>
-                    <th class="w-44 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">PR Number</th>
-                    <th class="w-36 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Requester</th>
-                    <th class="w-44 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Department</th>
-                    <th class="w-32 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Date Needed</th>
-                    <th class="w-32 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Created Date</th>
-                    <th class="w-32 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">PR Priority</th>
-                    <th class="w-52 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">PR Title</th>
-                    <th class="w-56 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Remarks</th>
-                    <th class="w-20 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">File</th>
-                    <th class="min-w-[220px] align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Item</th>
-                    <th class="w-20 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Qty</th>
-                    <th class="w-20 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Unit</th>
-                    <th class="w-20 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Stock</th>
-                    <th class="min-w-[180px] align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Vendor</th>
-                    <th class="w-32 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Price / Unit</th>
-                    <th class="w-36 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Total</th>
-                    <th class="w-40 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Grand Total</th>
-                    <th class="w-40 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">FC Status</th>
-                    <th class="w-44 align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Next Action</th>
+                    <th class="sticky top-0 z-20 w-12 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">No</th>
+                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Number</th>
+                    <th class="sticky top-0 z-20 w-36 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Requester</th>
+                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Department</th>
+                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Date Needed</th>
+                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Created Date</th>
+                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Priority</th>
+                    <th class="sticky top-0 z-20 w-52 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Title</th>
+                    <th class="sticky top-0 z-20 w-56 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Remarks</th>
+                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">File</th>
+                    <th class="sticky top-0 z-20 min-w-[260px] align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Item</th>
+                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Qty</th>
+                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Unit</th>
+                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Stock</th>
+                    <th class="sticky top-0 z-20 min-w-[190px] align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Vendor</th>
+                    <th class="sticky top-0 z-20 w-36 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Price / Unit</th>
+                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Total</th>
+                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Grand Total</th>
+                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">FC Status</th>
+                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Next Action</th>
                 </tr>
             </thead>
 
@@ -346,7 +346,26 @@ return null;
                 $fcStatus = (string) ($purchaseRequest->financial_controller_status ?? $purchaseRequest->status ?? 'submitted_to_financial_controller');
                 $fcStatusLabel = $getFcStatusLabel($fcStatus);
                 $nextAction = $getNextFcAction($fcStatus);
+                $groupTintClass = $loop->iteration % 2 === 0 ? 'bg-slate-50' : 'bg-white';
+                $summaryCellClass = 'align-top border border-slate-300 px-3 py-4 text-slate-800 ' . $groupTintClass;
                 @endphp
+
+                <tr>
+                    <td colspan="20" class="border-x border-t-4 border-x-slate-300 border-t-slate-500 bg-slate-800 px-4 py-3 text-white">
+                        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <span class="text-base font-bold">{{ $prNumber }}</span>
+                                <span class="text-sm font-bold">{{ $purchaseRequest->title }}</span>
+                                <span class="text-sm text-slate-200">{{ $purchaseRequest->requester_name ?? '-' }} / {{ $purchaseRequest->department_name ?? '-' }}</span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2 text-sm font-bold">
+                                <span class="border border-white/30 px-3 py-1">{{ $formatRupiah($grandTotal) }}</span>
+                                <span class="border border-white/30 px-3 py-1">{{ $fcStatusLabel }}</span>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
 
                 @if ($items->count() > 0)
                 @foreach ($items as $item)
@@ -359,43 +378,43 @@ return null;
                     $selectedVendorItem = $getSelectedVendorItem($purchaseRequest, $item);
                     @endphp
 
-                    <tr>
+                    <tr class="{{ $loop->iteration % 2 === 0 ? 'bg-slate-50/70' : 'bg-white' }} hover:bg-blue-50/40">
                         @if ($loop->first)
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-center font-bold text-slate-700">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center font-bold text-slate-700">
                             {{ $loop->parent->iteration }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 font-bold text-slate-950">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} font-bold text-slate-950">
                             {{ $prNumber }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-slate-800">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }}">
                             {{ $purchaseRequest->requester_name ?? '-' }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-slate-800">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }}">
                             {{ $purchaseRequest->department_name ?? '-' }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-center text-slate-800">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
                             {{ $purchaseRequest->date_needed ? \Carbon\Carbon::parse($purchaseRequest->date_needed)->format('d M Y') : '-' }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-center text-slate-800">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
                             {{ $purchaseRequest->created_at ? \Carbon\Carbon::parse($purchaseRequest->created_at)->format('d M Y') : '-' }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-center">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
                             <span class="inline-flex min-w-[90px] items-center justify-center border px-2 py-2 text-xs font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
                                 {{ $formatPriority($priority) }}
                             </span>
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 font-bold text-slate-950">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} font-bold text-slate-950">
                             {{ $purchaseRequest->title }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle whitespace-pre-line border border-slate-300 px-2 py-3 text-slate-800">
+                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} whitespace-pre-line leading-6">
                             {{ $purchaseRequest->requester_remarks ?: '-' }}
                         </td>
                         @endif
@@ -420,7 +439,7 @@ return null;
                             @endif
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-2 py-3 font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-3 py-3 font-bold leading-5 text-slate-950">
                             {{ $item->item_name }}
                         </td>
 
@@ -455,15 +474,17 @@ return null;
                         @endif
 
                         @if ($loop->first)
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 px-2 py-3 text-right text-base font-bold text-slate-950">
+                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-100 px-3 py-4 text-right text-base font-bold text-slate-950">
                             {{ $formatRupiah($grandTotal) }}
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3 text-center font-bold text-slate-950">
-                            {{ $fcStatusLabel }}
+                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 px-3 py-4 text-center font-bold text-slate-950">
+                            <span class="inline-flex min-w-[92px] items-center justify-center border border-slate-300 bg-white px-3 py-2 text-xs uppercase text-slate-800">
+                                {{ $fcStatusLabel }}
+                            </span>
                         </td>
 
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 px-2 py-3">
+                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 px-3 py-4">
                             @if ($nextAction)
                             <form method="POST" action="{{ route($nextAction['route'], $purchaseRequest) }}" onsubmit="return confirm('{{ $nextAction['confirm'] }}');">
                                 @csrf

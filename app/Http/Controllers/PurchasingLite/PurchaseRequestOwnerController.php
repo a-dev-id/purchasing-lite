@@ -265,17 +265,6 @@ class PurchaseRequestOwnerController extends Controller
             ]);
         });
 
-        app(PurchasingLiteEmailService::class)->sendToRoles(
-            purchaseRequest: $purchaseRequest,
-            roles: ['gm'],
-            subject: 'PR Returned to GM by OR - ' . $this->getPurchaseRequestNumber($purchaseRequest),
-            title: 'PR Returned by OR',
-            messageText: 'OR has returned this purchase request to GM for review.',
-            buttonLabel: 'Open GM Review',
-            buttonUrl: route('purchasing-lite.purchase-requests.gm.show', $purchaseRequest),
-            remarks: $remarks
-        );
-
         return redirect()
             ->route('purchasing-lite.dashboard')
             ->with('success', 'PR has been returned to GM.');
@@ -325,7 +314,7 @@ class PurchaseRequestOwnerController extends Controller
 
         app(PurchasingLiteEmailService::class)->sendToRoles(
             purchaseRequest: $purchaseRequest,
-            roles: ['gm', 'cost_control', 'purchasing'],
+            roles: ['cost_control', 'purchasing'],
             subject: 'PR Rejected by OR - ' . $this->getPurchaseRequestNumber($purchaseRequest),
             title: 'PR Rejected by OR',
             messageText: 'OR has rejected this purchase request.',
@@ -780,7 +769,7 @@ class PurchaseRequestOwnerController extends Controller
 
         app(PurchasingLiteEmailService::class)->sendToRoles(
             purchaseRequest: $originalPurchaseRequest,
-            roles: ['cost_control', 'purchasing', 'gm'],
+            roles: ['cost_control', 'purchasing'],
             subject: 'PR Split by OR - ' . $originalPrNumber,
             title: 'PR Split by OR',
             messageText: 'OR approved selected item(s). The remaining item(s) will stay with OR for later approval.',
@@ -807,16 +796,6 @@ class PurchaseRequestOwnerController extends Controller
             remarks: $remarks !== '' ? $remarks : 'Approved by OR and sent to Financial Controller.'
         );
 
-        app(PurchasingLiteEmailService::class)->sendToRoles(
-            purchaseRequest: $purchaseRequest,
-            roles: ['gm'],
-            subject: 'PR Approved by OR - ' . $prNumber,
-            title: 'PR Approved by OR',
-            messageText: 'OR has approved this purchase request and it has been sent to Financial Controller.',
-            buttonLabel: 'Open PR List',
-            buttonUrl: route('purchasing-lite.purchase-requests.meeting-list'),
-            remarks: $remarks !== '' ? $remarks : 'Approved by OR and sent to Financial Controller.'
-        );
     }
 
     private function getPurchaseRequestNumber(PurchaseRequest $purchaseRequest): string

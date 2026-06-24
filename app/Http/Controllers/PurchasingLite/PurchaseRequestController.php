@@ -353,7 +353,7 @@ class PurchaseRequestController extends Controller
 
             app(PurchasingLiteEmailService::class)->sendToRolesAndRequester(
                 purchaseRequest: $purchaseRequest,
-                roles: ['cost_control', 'purchasing', 'gm'],
+                roles: ['cost_control', 'purchasing'],
                 subject: 'PR On Shipping - ' . $purchaseRequest->pr_number,
                 title: 'PR Marked as On Shipping',
                 messageText: 'Purchasing has marked this purchase request as On Shipping.',
@@ -438,7 +438,7 @@ class PurchaseRequestController extends Controller
 
             app(PurchasingLiteEmailService::class)->sendToRolesAndRequester(
                 purchaseRequest: $purchaseRequest,
-                roles: ['cost_control', 'purchasing', 'gm'],
+                roles: ['cost_control', 'purchasing'],
                 subject: 'PR Received - ' . $purchaseRequest->pr_number,
                 title: 'PR Item Received by Purchasing',
                 messageText: 'Purchasing has marked this purchase request as Received.',
@@ -524,7 +524,7 @@ class PurchaseRequestController extends Controller
 
             app(PurchasingLiteEmailService::class)->sendToRolesAndRequester(
                 purchaseRequest: $purchaseRequest,
-                roles: ['cost_control', 'purchasing', 'gm'],
+                roles: ['cost_control', 'purchasing'],
                 subject: 'PR Handed Over to Requester - ' . $purchaseRequest->pr_number,
                 title: 'PR Handed Over to Requester',
                 messageText: 'Purchasing has handed over this purchase request item to the requester. This PR is now completed.',

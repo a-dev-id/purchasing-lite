@@ -111,11 +111,7 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
     $remark = $getRemarkFromLog($log);
 
     return filled($remark)
-    && (
-    str_contains($action, 'gm')
-    || str_contains($action, 'split')
-    || str_contains($action, 'approve')
-    );
+    && str_contains($action, 'split');
     })
     ->sortByDesc(function ($log) {
     return $log->acted_at ?? $log->created_at;
@@ -132,11 +128,7 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
     $latestLog = $findGmSplitLogFromCollection($model->logs);
     } else {
     $logs = $model->logs()
-    ->where(function ($query) {
-    $query->where('action', 'like', '%gm%')
-    ->orWhere('action', 'like', '%split%')
-    ->orWhere('action', 'like', '%approve%');
-    })
+    ->where('action', 'like', '%split%')
     ->latest('acted_at')
     ->latest('created_at')
     ->limit(30)
@@ -246,18 +238,6 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
             <li>{{ $error }}</li>
             @endforeach
         </ul>
-    </section>
-    @endif
-
-    @if (session('success'))
-    <section class="mb-6 border border-green-300 bg-green-50 px-5 py-4 text-sm font-bold text-green-800">
-        {{ session('success') }}
-    </section>
-    @endif
-
-    @if (session('error'))
-    <section class="mb-6 border border-red-300 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
-        {{ session('error') }}
     </section>
     @endif
 
@@ -449,6 +429,8 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
                         }
 
                         $selectedVendorItem = $selectedVendorItems[$item->id] ?? null;
+                        $gmQuantityValue = $selectedVendorItem['quantity'] ?? $item->quantity;
+                        $gmUnitPriceValue = $selectedVendorItem['unit_price'] ?? 0;
                         @endphp
 
                         <tr>
@@ -494,8 +476,12 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
                                 {{ $item->specification ?: '-' }}
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-3 text-right text-slate-800">
-                                {{ $formatQty($item->quantity) }}
+                            <td class="border border-slate-300 p-0 text-right text-slate-800">
+                                @if ($selectedVendorItem)
+                                <input type="text" name="gm_quantities[{{ $item->id }}]" value="{{ $formatQty($gmQuantityValue) }}" inputmode="decimal" autocomplete="off" form="gm-qty-save-form" data-gm-qty-input data-unit-price="{{ $gmUnitPriceValue }}" data-saved-value="{{ $formatQty($gmQuantityValue) }}" class="h-12 w-full border-0 bg-white px-3 text-right text-sm font-bold text-slate-950 outline-none focus:ring-2 focus:ring-blue-100">
+                                @else
+                                <span class="block px-3 py-3 text-right text-slate-800">{{ $formatQty($item->quantity) }}</span>
+                                @endif
                             </td>
 
                             <td class="border border-slate-300 px-3 py-3 text-slate-800">
@@ -515,7 +501,7 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
                                 {{ $formatRupiah($selectedVendorItem['unit_price'] ?? 0) }}
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
+                            <td class="border border-slate-300 px-3 py-3 text-right font-bold text-slate-950" data-gm-line-total>
                                 {{ $formatRupiah($selectedVendorItem['total_price'] ?? 0) }}
                             </td>
                             @else
@@ -539,7 +525,7 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
                             Grand Total
                         </td>
 
-                        <td class="border border-slate-300 px-3 py-4 text-right text-base font-bold text-slate-950">
+                        <td class="border border-slate-300 px-3 py-4 text-right text-base font-bold text-slate-950" data-gm-grand-total>
                             {{ $formatRupiah($selectedGrandTotal) }}
                         </td>
                     </tr>
@@ -547,26 +533,34 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
             </table>
         </div>
 
+        <form id="gm-qty-save-form" method="POST" action="{{ route('purchasing-lite.purchase-requests.gm.save-quantities', $purchaseRequest) }}" onsubmit="return validateGmQtySave();">
+            @csrf
+        </form>
+
         <form id="approve-form" method="POST" action="{{ $approveRoute }}" onsubmit="return validateApprove();">
             @csrf
             <input type="hidden" name="remarks" value="">
         </form>
 
         <div class="flex flex-col justify-end gap-3 border-t border-slate-300 p-5 md:flex-row">
-            <button type="button" data-open-modal="return-cost-control-modal" class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
+            <button type="submit" form="gm-qty-save-form" id="gm-save-qty-button" class="hidden h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
+                Save PR
+            </button>
+
+            <button type="button" data-open-modal="return-cost-control-modal" data-gm-action-button class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
                 Return to Cost Control
             </button>
 
-            <button type="button" data-open-modal="reject-requester-modal" class="inline-flex h-10 items-center justify-center border border-red-700 bg-white px-6 text-sm font-bold text-red-800 transition hover:bg-red-50">
+            <button type="button" data-open-modal="reject-requester-modal" data-gm-action-button class="inline-flex h-10 items-center justify-center border border-red-700 bg-white px-6 text-sm font-bold text-red-800 transition hover:bg-red-50">
                 Reject PR
             </button>
 
             @if ($allItemsHaveSelectedVendor)
-            <button type="submit" form="approve-form" class="inline-flex h-10 items-center justify-center bg-green-700 px-6 text-sm font-bold text-white transition hover:bg-green-800">
+            <button type="submit" form="approve-form" id="gm-approve-button" data-gm-action-button class="inline-flex h-10 items-center justify-center bg-green-700 px-6 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400">
                 Approve
             </button>
             @else
-            <button type="button" onclick="alert('Selected vendor data is incomplete. Please return this PR to Cost Control.')" class="inline-flex h-10 items-center justify-center bg-slate-400 px-6 text-sm font-bold text-white">
+            <button type="button" onclick="alert('Selected vendor data is incomplete. Please return this PR to Cost Control.')" data-gm-action-button class="inline-flex h-10 items-center justify-center bg-slate-400 px-6 text-sm font-bold text-white">
                 Approve
             </button>
             @endif
@@ -650,7 +644,96 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
     <script>
         const gmCanSelectItems = @json($canSelectItems);
 
+    function parseGmNumber(value) {
+        const normalized = String(value ?? '')
+            .replace(/,/g, '.')
+            .replace(/[^0-9.]/g, '');
+
+        const number = Number.parseFloat(normalized);
+
+        return Number.isFinite(number) ? number : 0;
+    }
+
+    function formatGmQty(value) {
+        return String(Number(value || 0).toFixed(2)).replace(/\.?0+$/, '');
+    }
+
+    function formatGmRupiah(value) {
+        const number = Math.round(Number(value || 0));
+
+        return 'Rp ' + String(number).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function gmQuantityIsDirty(input) {
+        return parseGmNumber(input.value) !== parseGmNumber(input.getAttribute('data-saved-value'));
+    }
+
+    function recalculateGmTotals() {
+        let grandTotal = 0;
+
+        document.querySelectorAll('[data-gm-qty-input]').forEach(function (input) {
+            const unitPrice = parseGmNumber(input.getAttribute('data-unit-price'));
+            const quantity = parseGmNumber(input.value);
+            const row = input.closest('tr');
+            const lineTotal = row ? row.querySelector('[data-gm-line-total]') : null;
+            const total = quantity * unitPrice;
+
+            grandTotal += total;
+
+            if (lineTotal) {
+                lineTotal.textContent = formatGmRupiah(total);
+            }
+        });
+
+        const grandTotalCell = document.querySelector('[data-gm-grand-total]');
+
+        if (grandTotalCell) {
+            grandTotalCell.textContent = formatGmRupiah(grandTotal);
+        }
+    }
+
+    function updateGmSaveButton() {
+        const saveButton = document.getElementById('gm-save-qty-button');
+        const approveButton = document.getElementById('gm-approve-button');
+        const actionButtons = document.querySelectorAll('[data-gm-action-button]');
+        const hasChanges = Array.from(document.querySelectorAll('[data-gm-qty-input]')).some(gmQuantityIsDirty);
+
+        if (saveButton) {
+            saveButton.classList.toggle('hidden', ! hasChanges);
+            saveButton.classList.toggle('inline-flex', hasChanges);
+        }
+
+        actionButtons.forEach(function (button) {
+            button.classList.toggle('hidden', hasChanges);
+            button.classList.toggle('inline-flex', ! hasChanges);
+        });
+
+        if (approveButton) {
+            approveButton.disabled = hasChanges;
+            approveButton.title = hasChanges ? 'Please save the PR before approving.' : '';
+        }
+    }
+
+    function gmHasUnsavedQuantities() {
+        return Array.from(document.querySelectorAll('[data-gm-qty-input]')).some(gmQuantityIsDirty);
+    }
+
+    function validateGmQtySave() {
+        const dirtyInputs = Array.from(document.querySelectorAll('[data-gm-qty-input]')).filter(gmQuantityIsDirty);
+
+        if (dirtyInputs.length < 1) {
+            return false;
+        }
+
+        return confirm('Save PR quantity changes?');
+    }
+
     function validateApprove() {
+        if (gmHasUnsavedQuantities()) {
+            alert('Please save the PR quantity changes before approving.');
+            return false;
+        }
+
         if (!gmCanSelectItems) {
             return true;
         }
@@ -669,6 +752,28 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        recalculateGmTotals();
+        updateGmSaveButton();
+
+        document.querySelectorAll('[data-gm-qty-input]').forEach(function (input) {
+            input.addEventListener('input', function () {
+                recalculateGmTotals();
+                updateGmSaveButton();
+            });
+
+            input.addEventListener('blur', function () {
+                let quantity = parseGmNumber(input.value);
+
+                if (quantity <= 0) {
+                    quantity = 1;
+                }
+
+                input.value = formatGmQty(quantity);
+                recalculateGmTotals();
+                updateGmSaveButton();
+            });
+        });
+
         document.querySelectorAll('[data-open-modal]').forEach(function (button) {
             button.addEventListener('click', function () {
                 const modalId = button.getAttribute('data-open-modal');

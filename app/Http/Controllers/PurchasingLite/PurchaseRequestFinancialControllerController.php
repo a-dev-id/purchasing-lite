@@ -166,7 +166,6 @@ class PurchaseRequestFinancialControllerController extends Controller
             roles: [
                 'cost_control',
                 'purchasing',
-                'gm',
             ],
             subject: 'PR Updated by Financial Controller - ' . $prNumber,
             title: 'PR Status Updated by Financial Controller',

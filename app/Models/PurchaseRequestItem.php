@@ -16,6 +16,7 @@ class PurchaseRequestItem extends Model
         'quantity',
         'unit',
         'stock',
+        'last_purchase_date',
         'item_photo',
         'item_photos',
         'needed_date',
@@ -35,6 +36,7 @@ class PurchaseRequestItem extends Model
     protected $casts = [
         'quantity' => 'decimal:2',
         'stock' => 'decimal:2',
+        'last_purchase_date' => 'date',
         'estimated_unit_price' => 'decimal:2',
         'estimated_total_price' => 'decimal:2',
         'item_photos' => 'array',

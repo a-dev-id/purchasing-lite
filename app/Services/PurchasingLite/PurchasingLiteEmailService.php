@@ -19,7 +19,8 @@ class PurchasingLiteEmailService
         string $messageText,
         string $buttonLabel,
         string $buttonUrl,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $threadKey = null
     ): void {
         $recipients = $this->usersByRoles($roles);
 
@@ -31,7 +32,8 @@ class PurchasingLiteEmailService
             messageText: $messageText,
             buttonLabel: $buttonLabel,
             buttonUrl: $buttonUrl,
-            remarks: $remarks
+            remarks: $remarks,
+            threadKey: $threadKey
         );
     }
 
@@ -42,7 +44,8 @@ class PurchasingLiteEmailService
         string $messageText,
         string $buttonLabel,
         string $buttonUrl,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $threadKey = null
     ): void {
         $recipients = collect();
 
@@ -64,7 +67,8 @@ class PurchasingLiteEmailService
             messageText: $messageText,
             buttonLabel: $buttonLabel,
             buttonUrl: $buttonUrl,
-            remarks: $remarks
+            remarks: $remarks,
+            threadKey: $threadKey
         );
     }
 
@@ -76,7 +80,8 @@ class PurchasingLiteEmailService
         string $messageText,
         string $buttonLabel,
         string $buttonUrl,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $threadKey = null
     ): void {
         $recipients = $this->usersByRoles($roles);
 
@@ -98,7 +103,8 @@ class PurchasingLiteEmailService
             messageText: $messageText,
             buttonLabel: $buttonLabel,
             buttonUrl: $buttonUrl,
-            remarks: $remarks
+            remarks: $remarks,
+            threadKey: $threadKey
         );
     }
 
@@ -110,7 +116,8 @@ class PurchasingLiteEmailService
         string $messageText,
         string $buttonLabel,
         string $buttonUrl,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $threadKey = null
     ): void {
         $recipients = $recipients
             ->filter(function ($user) {
@@ -141,7 +148,8 @@ class PurchasingLiteEmailService
                         messageText: $messageText,
                         buttonLabel: $buttonLabel,
                         buttonUrl: $buttonUrl,
-                        remarks: $remarks
+                        remarks: $remarks,
+                        threadKey: $threadKey
                     )
                 );
             } catch (\Throwable $e) {

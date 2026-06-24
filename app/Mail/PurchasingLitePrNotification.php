@@ -7,7 +7,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\Mailables\Headers;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Str;
 
 class PurchasingLitePrNotification extends Mailable
 {
@@ -27,6 +29,12 @@ class PurchasingLitePrNotification extends Mailable
 
     public ?string $remarks;
 
+    public ?string $threadKey;
+
+    public ?string $threadMessageId;
+
+    public ?string $threadReferenceId;
+
     /**
      * Create a new message instance.
      */
@@ -37,7 +45,8 @@ class PurchasingLitePrNotification extends Mailable
         string $messageText,
         string $buttonLabel,
         string $buttonUrl,
-        ?string $remarks = null
+        ?string $remarks = null,
+        ?string $threadKey = null
     ) {
         $this->purchaseRequest = $purchaseRequest;
         $this->mailSubject = $mailSubject;
@@ -46,6 +55,9 @@ class PurchasingLitePrNotification extends Mailable
         $this->buttonLabel = $buttonLabel;
         $this->buttonUrl = $buttonUrl;
         $this->remarks = $remarks;
+        $this->threadKey = $threadKey;
+        $this->threadReferenceId = $threadKey ? $this->makeHeaderId($threadKey) : null;
+        $this->threadMessageId = $threadKey ? $this->makeHeaderId($threadKey . '-' . ($purchaseRequest->id ?? 'pr') . '-' . Str::uuid()) : null;
     }
 
     /**
@@ -55,6 +67,21 @@ class PurchasingLitePrNotification extends Mailable
     {
         return new Envelope(
             subject: $this->mailSubject,
+        );
+    }
+
+    public function headers(): Headers
+    {
+        if (! $this->threadKey || ! $this->threadMessageId || ! $this->threadReferenceId) {
+            return new Headers();
+        }
+
+        return new Headers(
+            messageId: $this->threadMessageId,
+            references: [$this->threadReferenceId],
+            text: [
+                'In-Reply-To' => '<' . $this->threadReferenceId . '>',
+            ],
         );
     }
 
@@ -82,5 +109,14 @@ class PurchasingLitePrNotification extends Mailable
     public function attachments(): array
     {
         return [];
+    }
+
+    private function makeHeaderId(string $value): string
+    {
+        $domain = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'purchasing-lite.local';
+        $key = preg_replace('/[^a-z0-9]+/i', '-', strtolower($value));
+        $key = trim((string) $key, '-');
+
+        return ($key ?: 'notification') . '@' . $domain;
     }
 }

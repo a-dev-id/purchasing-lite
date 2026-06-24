@@ -528,11 +528,7 @@ $action = strtolower((string) ($log->action ?? ''));
 $remark = $getRemarkFromLog($log);
 
 return filled($remark)
-&& (
-str_contains($action, 'gm')
-|| str_contains($action, 'split')
-|| str_contains($action, 'approve')
-);
+&& str_contains($action, 'split');
 })
 ->sortByDesc(function ($log) {
 return $log->acted_at ?? $log->created_at;
@@ -549,11 +545,7 @@ if ($model->relationLoaded('logs')) {
 $latestLog = $findGmSplitLogFromCollection($model->logs);
 } else {
 $logs = $model->logs()
-->where(function ($query) {
-$query->where('action', 'like', '%gm%')
-->orWhere('action', 'like', '%split%')
-->orWhere('action', 'like', '%approve%');
-})
+->where('action', 'like', '%split%')
 ->latest('acted_at')
 ->latest('created_at')
 ->limit(30)

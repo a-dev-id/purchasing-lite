@@ -229,8 +229,24 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
     <form id="vendor-bids-form" method="POST" action="{{ route('purchasing-lite.purchase-requests.vendors.store', $purchaseRequest) }}" autocomplete="off">
         @csrf
 
-        <div class="overflow-visible">
-            <table class="min-w-full border-collapse text-sm">
+        <div class="overflow-x-auto">
+            <table class="border-collapse text-sm" style="width: 2634px; min-width: 2634px; table-layout: fixed;">
+                <colgroup>
+                    <col style="width: 56px;">
+                    <col style="width: 250px;">
+                    <col style="width: 100px;">
+                    <col style="width: 280px;">
+                    <col style="width: 70px;">
+                    <col style="width: 72px;">
+                    <col style="width: 76px;">
+                    <col style="width: 170px;">
+                    <col style="width: 200px;">
+                    <col style="width: 320px;">
+                    <col style="width: 200px;">
+                    <col style="width: 320px;">
+                    <col style="width: 200px;">
+                    <col style="width: 320px;">
+                </colgroup>
                 <thead>
                     <tr class="bg-slate-100">
                         <th rowspan="2" class="w-16 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
@@ -261,6 +277,10 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                             Stock
                         </th>
 
+                        <th rowspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                            Last Purchase
+                        </th>
+
                         <th colspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
                             Bid 1
                         </th>
@@ -279,7 +299,7 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                             Vendor
                         </th>
 
-                        <th class="w-44 border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
 
@@ -287,7 +307,7 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                             Vendor
                         </th>
 
-                        <th class="w-44 border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
 
@@ -295,7 +315,7 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                             Vendor
                         </th>
 
-                        <th class="w-44 border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
                     </tr>
@@ -315,6 +335,10 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                         );
 
                         $unitValue = old('items.' . $item->id . '.unit', $item->unit);
+                        $lastPurchaseDateValue = old(
+                        'items.' . $item->id . '.last_purchase_date',
+                        $item->last_purchase_date ? $item->last_purchase_date->format('Y-m-d') : ''
+                        );
                         @endphp
 
                         <tr>
@@ -362,6 +386,10 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                                 {{ $item->stock !== null ? rtrim(rtrim(number_format((float) $item->stock, 2, '.', ''), '0'), '.') : '-' }}
                             </td>
 
+                            <td class="border border-slate-300 p-0 align-top">
+                                <input type="date" name="items[{{ $item->id }}][last_purchase_date]" value="{{ $lastPurchaseDateValue }}" class="h-11 w-full border-0 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                            </td>
+
                             @for ($bidNumber = 1; $bidNumber <= 3; $bidNumber++) @php $savedVendorName=$savedBids[$item->id][$bidNumber]['vendor_name'] ?? '';
                                 $savedUnitPrice = $savedBids[$item->id][$bidNumber]['unit_price'] ?? '';
 
@@ -386,7 +414,7 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="13" class="border border-slate-300 px-4 py-6 text-center text-base text-slate-500">
+                            <td colspan="14" class="border border-slate-300 px-4 py-6 text-center text-base text-slate-500">
                                 No item data.
                             </td>
                         </tr>

@@ -98,6 +98,7 @@ class PurchaseRequestVendorController extends Controller
             'items' => ['nullable', 'array'],
             'items.*.quantity' => ['nullable', 'string', 'max:100'],
             'items.*.unit' => ['nullable', 'string', 'max:50'],
+            'items.*.last_purchase_date' => ['nullable', 'date'],
 
             'bids' => ['nullable', 'array'],
             'bids.*' => ['nullable', 'array'],
@@ -116,12 +117,14 @@ class PurchaseRequestVendorController extends Controller
 
                 $quantityRaw = trim((string) ($itemUpdate['quantity'] ?? $item->quantity));
                 $unitRaw = trim((string) ($itemUpdate['unit'] ?? $item->unit));
+                $lastPurchaseDate = $itemUpdate['last_purchase_date'] ?? null;
 
                 $quantity = $this->parseMoney($quantityRaw);
 
                 $item->update([
                     'quantity' => $quantity > 0 ? $quantity : 1,
                     'unit' => $unitRaw !== '' ? $unitRaw : null,
+                    'last_purchase_date' => filled($lastPurchaseDate) ? $lastPurchaseDate : null,
                 ]);
             }
 
