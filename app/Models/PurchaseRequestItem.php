@@ -24,6 +24,8 @@ class PurchaseRequestItem extends Model
         'estimated_total_price',
         'requester_remarks',
         'purchasing_remarks',
+        'purchasing_payment_method',
+        'purchasing_payment_note',
         'cost_control_remarks',
         'gm_remarks',
         'gm_status',

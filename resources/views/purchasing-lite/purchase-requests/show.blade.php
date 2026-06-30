@@ -34,9 +34,21 @@ $isPurchasingAccount
 'received',
 ], true);
 
+$canEditPurchasingPaymentSummary =
+$isPurchasingAccount
+&& $currentStatus === 'on_progress';
+
 $nextPurchasingAction = null;
 
-if ($canPurchasingFollowUp && $currentStatus === 'paid_to_vendor') {
+if ($canEditPurchasingPaymentSummary) {
+$nextPurchasingAction = [
+'label' => 'Download PDF',
+'type' => 'link',
+'route' => route('purchasing-lite.purchase-requests.purchasing.payment-summary.pdf', $purchaseRequest),
+'class' => 'bg-blue-700 text-white hover:bg-blue-800',
+'description' => 'Save the payment method and note for each item, then download the payment summary PDF.',
+];
+} elseif ($canPurchasingFollowUp && $currentStatus === 'paid_to_vendor') {
 $nextPurchasingAction = [
 'label' => 'On Shipping',
 'type' => 'form',
@@ -288,7 +300,22 @@ return $vendorName;
 return null;
 };
 
-$getSelectedVendorItem = function ($purchaseRequest, $item) use ($getVendorNameFromRow) {
+$vendorBidOptions = $vendorBidOptions ?? [];
+
+$getSelectedVendorItem = function ($purchaseRequest, $item) use ($getVendorNameFromRow, $vendorBidOptions) {
+$itemVendorOptions = $vendorBidOptions[$item->id] ?? [];
+$selectedVendorOption = collect($itemVendorOptions)->first(fn($option) => (bool) ($option['is_selected'] ?? false));
+
+if ($selectedVendorOption) {
+return [
+'offer_item_id' => (int) ($selectedVendorOption['offer_item_id'] ?? 0),
+'vendor_name' => $selectedVendorOption['vendor_name'] ?? '-',
+'unit_price' => (float) ($selectedVendorOption['unit_price'] ?? 0),
+'quantity' => (float) ($selectedVendorOption['quantity'] ?? $item->quantity ?? 0),
+'total_price' => (float) ($selectedVendorOption['total_price'] ?? 0),
+];
+}
+
 $candidateTables = [
 'purchase_request_offer_items',
 'purchase_request_vendor_offer_items',
@@ -371,8 +398,10 @@ $selectedGrandTotal += (float) ($selectedVendorItemForTotal['total_price'] ?? 0)
 }
 
 $showSelectedVendorDetail =
-$canPurchasingFollowUp
+$canEditPurchasingPaymentSummary
+|| $canPurchasingFollowUp
 || in_array($currentStatus, [
+'on_progress',
 'paid_to_vendor',
 'on_shipping',
 'on_delivery',
@@ -383,6 +412,15 @@ $canPurchasingFollowUp
 
 $isRequesterAccount =
 str_contains($normalizedRole, 'requester')
+|| in_array($normalizedRole, [
+'it',
+'housekeeping',
+'housekeeping & garden',
+'sales',
+'sales & marketing',
+'spa',
+'essence spa',
+], true)
 || (
 $user
 && method_exists($user, 'hasRole')
@@ -398,22 +436,28 @@ $returnStatuses = [
 'revision_from_purchasing',
 ];
 
+$requesterEditableStatuses = array_merge(['draft'], $returnStatuses);
+
 $rejectedStatuses = [
 'rejected',
 'rejected_by_purchasing',
 ];
 
-$canEditReturnedPr =
-$isRequesterAccount
-&& in_array((string) $purchaseRequest->status, $returnStatuses, true)
-&& (string) $purchaseRequest->current_step === 'requester'
-&& (
-(int) $purchaseRequest->requested_by === (int) ($user->id ?? 0)
+$canEditRequesterPr =
+(
+$normalizedRole === 'admin'
 || (
-! empty($user->department_name)
-&& $purchaseRequest->department_name === $user->department_name
+$isRequesterAccount
+&& (int) $purchaseRequest->requested_by === (int) ($user->id ?? 0)
 )
-);
+)
+&& in_array((string) $purchaseRequest->status, $requesterEditableStatuses, true)
+&& (string) $purchaseRequest->current_step === 'requester'
+;
+
+$canDeleteDraftPr =
+$canEditRequesterPr
+&& (string) $purchaseRequest->status === 'draft';
 
 $latestPurchasingReturnLog = null;
 $latestPurchasingRejectLog = null;
@@ -719,110 +763,110 @@ $purchaseRequest->handover_remarks
 ?? null;
 @endphp
 
-<section class="mb-6 border border-slate-300 bg-white p-6 shadow-sm">
+<section class="mb-4 border border-slate-300 bg-white p-4 shadow-sm">
     <div class="flex items-center justify-between gap-4">
         <div>
-            <h2 class="text-xl font-bold text-slate-950">
+            <h2 class="text-lg font-bold text-slate-950">
                 {{ $purchaseRequest->pr_number }}
             </h2>
 
-            <p class="mt-1 text-base text-slate-600">
+            <p class="mt-1 text-sm text-slate-600">
                 {{ $purchaseRequest->title }}
             </p>
         </div>
 
-        <a href="/purchasing-lite/dashboard" class="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50">
+        <a href="/purchasing-lite/dashboard" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-4 text-xs font-bold text-slate-800 transition hover:bg-slate-50">
             Back
         </a>
     </div>
 </section>
 
 <section class="border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             PR Information
         </h3>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Requester Name
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->requester_name ?? '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Department
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->department_name ?? '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Date Needed
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->date_needed ? $purchaseRequest->date_needed->format('d M Y') : '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Status
             </p>
 
-            <p class="mt-2 text-base font-bold capitalize text-slate-950">
+            <p class="mt-1 text-sm font-bold capitalize text-slate-950">
                 {{ str_replace('_', ' ', $purchaseRequest->status) }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Current Step
             </p>
 
-            <p class="mt-2 text-base font-bold capitalize text-slate-950">
+            <p class="mt-1 text-sm font-bold capitalize text-slate-950">
                 {{ $formatActionLabel($purchaseRequest->current_step) }}
             </p>
         </div>
 
         <div>
-                <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Created Date
                 </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->created_at ? $purchaseRequest->created_at->format('d M Y H:i') : '-' }}
             </p>
         </div>
 
         <div class="md:col-span-3">
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Requester Remarks
             </p>
 
-            <p class="mt-2 whitespace-pre-line text-base text-slate-800">
+            <p class="mt-1 whitespace-pre-line text-sm text-slate-800">
                 {{ $purchaseRequest->requester_remarks ?: '-' }}
             </p>
         </div>
 
         @if (filled($financialControllerRemarksValue))
         <div class="md:col-span-3">
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Financial Controller Remarks
             </p>
 
-            <div class="mt-2 border border-violet-300 bg-violet-50 px-3 py-3">
-                <p class="whitespace-pre-line text-base font-bold text-violet-950">
+            <div class="mt-1 border border-violet-300 bg-violet-50 px-3 py-2">
+                <p class="whitespace-pre-line text-sm font-bold text-violet-950">
                     {{ $financialControllerRemarksValue }}
                 </p>
             </div>
@@ -885,34 +929,38 @@ $purchaseRequest->handover_remarks
     </div>
 </section>
 
-@if ($canPurchasingFollowUp && $nextPurchasingAction)
-<section class="mt-6 border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+@if (($canPurchasingFollowUp || $canEditPurchasingPaymentSummary) && $nextPurchasingAction)
+<section class="mt-4 border border-slate-300 bg-white shadow-sm">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             Purchasing Follow Up
         </h3>
     </div>
 
-    <div class="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+    <div class="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Next Action
             </p>
 
-            <p class="mt-2 text-base text-slate-700">
+            <p class="mt-1 text-sm text-slate-700">
                 {{ $nextPurchasingAction['description'] }}
             </p>
         </div>
 
-        @if (($nextPurchasingAction['type'] ?? 'form') === 'modal')
-        <button type="button" data-open-modal="{{ $nextPurchasingAction['modal_id'] }}" class="inline-flex h-12 min-w-[220px] items-center justify-center px-8 text-sm font-bold {{ $nextPurchasingAction['class'] }}">
+        @if (($nextPurchasingAction['type'] ?? 'form') === 'link')
+        <a href="{{ $nextPurchasingAction['route'] }}" class="inline-flex h-9 min-w-[180px] items-center justify-center px-5 text-xs font-bold {{ $nextPurchasingAction['class'] }}">
+            {{ $nextPurchasingAction['label'] }}
+        </a>
+        @elseif (($nextPurchasingAction['type'] ?? 'form') === 'modal')
+        <button type="button" data-open-modal="{{ $nextPurchasingAction['modal_id'] }}" class="inline-flex h-9 min-w-[180px] items-center justify-center px-5 text-xs font-bold {{ $nextPurchasingAction['class'] }}">
             {{ $nextPurchasingAction['label'] }}
         </button>
         @else
         <form method="POST" action="{{ $nextPurchasingAction['route'] }}" onsubmit="return confirm('{{ $nextPurchasingAction['confirm'] }}');">
             @csrf
 
-            <button type="submit" class="inline-flex h-12 min-w-[180px] items-center justify-center px-8 text-sm font-bold {{ $nextPurchasingAction['class'] }}">
+            <button type="submit" class="inline-flex h-9 min-w-[160px] items-center justify-center px-5 text-xs font-bold {{ $nextPurchasingAction['class'] }}">
                 {{ $nextPurchasingAction['label'] }}
             </button>
         </form>
@@ -997,57 +1045,72 @@ $purchaseRequest->handover_remarks
 </section>
 @endif
 
-<section class="mt-6 border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+<section class="mt-4 border border-slate-300 bg-white shadow-sm">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             PR Detail
         </h3>
     </div>
 
+    @if ($canEditPurchasingPaymentSummary)
+    <form method="POST" action="{{ route('purchasing-lite.purchase-requests.purchasing.payment-summary.save', $purchaseRequest) }}">
+        @csrf
+    @endif
+
     <div class="overflow-x-auto">
-        <table class="min-w-full border-collapse text-sm">
+        <table class="border-collapse text-xs" style="width: {{ $canEditPurchasingPaymentSummary ? '2280px' : '1500px' }}; min-width: {{ $canEditPurchasingPaymentSummary ? '2280px' : '1500px' }}; table-layout: fixed;">
             <thead>
                 <tr class="bg-slate-100">
-                    <th class="w-16 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 48px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         No
                     </th>
 
-                    <th class="w-28 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 78px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Files
                     </th>
 
-                    <th class="min-w-[260px] align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 260px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Item Name
                     </th>
 
-                    <th class="min-w-[320px] align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 440px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Specification
                     </th>
 
-                    <th class="w-24 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 58px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Qty
                     </th>
 
-                    <th class="w-24 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 70px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Unit
                     </th>
 
-                    <th class="w-24 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 70px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Stock
                     </th>
 
                     @if ($showSelectedVendorDetail)
-                    <th class="min-w-[220px] align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 420px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Vendor
                     </th>
 
-                    <th class="w-36 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 150px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Price / Unit
                     </th>
 
-                    <th class="w-40 align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                    <th style="width: 130px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Total
                     </th>
+
+                    @if ($canEditPurchasingPaymentSummary)
+                    <th style="width: 155px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
+                        Payment Method
+                    </th>
+
+                    <th style="width: 500px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
+                        Note
+                    </th>
+                    @endif
                     @endif
                 </tr>
             </thead>
@@ -1061,22 +1124,46 @@ $purchaseRequest->handover_remarks
                     }
 
                     $selectedVendorItem = $getSelectedVendorItem($purchaseRequest, $item);
+                    $itemVendorOptions = $vendorBidOptions[$item->id] ?? [];
+                    $itemVendorOptionsByBid = collect($itemVendorOptions)->keyBy(function ($vendorOption) {
+                    return (int) ($vendorOption['bid_number'] ?? 0);
+                    });
+
+                    if (! $selectedVendorItem && $canEditPurchasingPaymentSummary && ! empty($itemVendorOptions)) {
+                    $firstVendorOption = $itemVendorOptions[0];
+                    $selectedVendorItem = [
+                    'offer_item_id' => (int) ($firstVendorOption['offer_item_id'] ?? 0),
+                    'vendor_name' => $firstVendorOption['vendor_name'] ?? '-',
+                    'unit_price' => (float) ($firstVendorOption['unit_price'] ?? 0),
+                    'quantity' => (float) ($firstVendorOption['quantity'] ?? $item->quantity ?? 0),
+                    'total_price' => (float) ($firstVendorOption['total_price'] ?? 0),
+                    ];
+                    }
+
+                    $selectedOfferItemId = old(
+                    'items.' . $item->id . '.selected_offer_item_id',
+                    $selectedVendorItem['offer_item_id'] ?? null
+                    );
+                    $oldUnitPriceValue = old('items.' . $item->id . '.unit_price');
+                    $selectedUnitPriceValue = $oldUnitPriceValue !== null
+                    ? (str_starts_with(trim((string) $oldUnitPriceValue), 'Rp') ? $oldUnitPriceValue : 'Rp ' . $oldUnitPriceValue)
+                    : ($selectedVendorItem ? $formatRupiah($selectedVendorItem['unit_price']) : '');
                     @endphp
 
                     <tr>
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-center font-bold text-slate-700">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-700">
                             {{ $loop->iteration }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3">
+                        <td class="align-middle border border-slate-300 px-2 py-1.5">
                             @if (count($photos))
                             <div class="flex flex-wrap justify-center gap-1">
                                 @foreach ($photos as $photo)
                                 <a href="{{ asset('storage/' . ltrim($photo, '/')) }}" target="_blank">
                                     @if ($isAttachmentImage($photo))
-                                    <img src="{{ asset('storage/' . ltrim($photo, '/')) }}" alt="" class="h-16 w-16 border border-slate-300 object-cover">
+                                    <img src="{{ asset('storage/' . ltrim($photo, '/')) }}" alt="" class="h-10 w-10 border border-slate-300 object-cover">
                                     @else
-                                    <span class="flex h-16 w-28 items-center border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-700">
+                                    <span class="flex h-10 w-16 items-center border border-slate-300 bg-slate-50 px-2 text-[10px] font-bold text-slate-700">
                                         {{ basename($photo) }}
                                     </span>
                                     @endif
@@ -1088,49 +1175,108 @@ $purchaseRequest->handover_remarks
                             @endif
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 font-bold text-slate-900">
+                        <td class="align-middle border border-slate-300 px-2 py-2 font-bold text-slate-900">
                             {{ $item->item_name }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-slate-800">
                             {{ $item->specification ?: '-' }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-right text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right text-slate-800">
                             {{ $formatQty($item->quantity) }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-slate-800">
                             {{ $item->unit ?: '-' }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right font-bold text-slate-950">
                             {{ $item->stock !== null ? $formatQty($item->stock) : '-' }}
                         </td>
 
                         @if ($showSelectedVendorDetail)
                         @if ($selectedVendorItem)
-                        <td class="align-middle border border-slate-300 px-3 py-3 font-bold text-slate-950">
-                            {{ $selectedVendorItem['vendor_name'] }}
+                        @if ($canEditPurchasingPaymentSummary)
+                        <td class="align-middle border border-slate-300 px-2 py-2">
+                            <div class="grid grid-cols-3 gap-1.5">
+                                @for ($bidNumber = 1; $bidNumber <= 3; $bidNumber++)
+                                @php
+                                $vendorOption = $itemVendorOptionsByBid->get($bidNumber);
+                                @endphp
+
+                                @if ($vendorOption)
+                                <label class="flex min-h-16 cursor-pointer items-start gap-2 border border-slate-300 bg-white px-2 py-1.5 hover:bg-slate-50">
+                                    <input type="radio" name="items[{{ $item->id }}][selected_offer_item_id]" value="{{ $vendorOption['offer_item_id'] }}" data-summary-vendor-option data-unit-price="{{ (float) ($vendorOption['unit_price'] ?? 0) }}" data-quantity="{{ (float) ($vendorOption['quantity'] ?? $item->quantity ?? 0) }}" class="mt-0.5" @checked((string) $selectedOfferItemId === (string) ($vendorOption['offer_item_id'] ?? ''))>
+
+                                    <span class="min-w-0">
+                                        <span class="block text-xs font-bold text-slate-950">Bid {{ $bidNumber }}</span>
+                                        <span class="mt-0.5 block truncate text-[11px] font-bold text-slate-800">{{ $vendorOption['vendor_name'] ?? '-' }}</span>
+                                        <span class="mt-0.5 block text-[11px] font-bold text-slate-600">
+                                            {{ $formatRupiah($vendorOption['unit_price'] ?? 0) }}
+                                        </span>
+                                    </span>
+                                </label>
+                                @else
+                                <div class="min-h-16 border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                    <span class="block text-xs font-bold text-slate-500">Bid {{ $bidNumber }}</span>
+                                    <span class="mt-0.5 block text-[11px] font-bold text-slate-400">No bid</span>
+                                </div>
+                                @endif
+                                @endfor
+                            </div>
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
-                            {{ $formatRupiah($selectedVendorItem['unit_price']) }}
+                        <td class="align-middle border border-slate-300 p-0">
+                            <input type="text" name="items[{{ $item->id }}][unit_price]" value="{{ $selectedUnitPriceValue }}" data-summary-price-input data-quantity="{{ (float) ($selectedVendorItem['quantity'] ?? $item->quantity ?? 0) }}" class="h-8 w-full border-0 bg-white px-2 text-right text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right font-bold text-slate-950" data-summary-row-total>
                             {{ $formatRupiah($selectedVendorItem['total_price']) }}
                         </td>
                         @else
-                        <td colspan="3" class="align-middle border border-red-300 bg-red-50 px-3 py-3 text-center font-bold text-red-700">
+                        <td class="align-middle border border-slate-300 px-2 py-2 font-bold text-slate-950">
+                            {{ $selectedVendorItem['vendor_name'] }}
+                        </td>
+
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right font-bold text-slate-950">
+                            {{ $formatRupiah($selectedVendorItem['unit_price']) }}
+                        </td>
+
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right font-bold text-slate-950">
+                            {{ $formatRupiah($selectedVendorItem['total_price']) }}
+                        </td>
+                        @endif
+                        @else
+                        <td colspan="3" class="align-middle border border-red-300 bg-red-50 px-2 py-2 text-center font-bold text-red-700">
                             No selected vendor
+                        </td>
+                        @endif
+
+                        @if ($canEditPurchasingPaymentSummary)
+                        @php
+                        $paymentMethodValue = old('items.' . $item->id . '.payment_method', $item->purchasing_payment_method);
+                        $paymentNoteValue = old('items.' . $item->id . '.payment_note', $item->purchasing_payment_note);
+                        @endphp
+
+                        <td class="align-middle border border-slate-300 p-0">
+                            <select name="items[{{ $item->id }}][payment_method]" class="h-8 w-full border-0 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                <option value="">Select</option>
+                                <option value="cash" @selected($paymentMethodValue === 'cash')>Cash</option>
+                                <option value="credit" @selected($paymentMethodValue === 'credit')>Credit</option>
+                                <option value="transfer" @selected($paymentMethodValue === 'transfer')>Transfer</option>
+                            </select>
+                        </td>
+
+                        <td class="align-middle border border-slate-300 p-0">
+                            <textarea name="items[{{ $item->id }}][payment_note]" rows="2" class="min-h-8 w-full resize-y border-0 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-100" placeholder="Bank detail, credit duration, or note">{{ $paymentNoteValue }}</textarea>
                         </td>
                         @endif
                         @endif
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $showSelectedVendorDetail ? 10 : 7 }}" class="border border-slate-300 px-4 py-6 text-center text-base text-slate-500">
+                        <td colspan="{{ $showSelectedVendorDetail ? ($canEditPurchasingPaymentSummary ? 12 : 10) : 7 }}" class="border border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
                             No item data.
                         </td>
                     </tr>
@@ -1140,52 +1286,79 @@ $purchaseRequest->handover_remarks
             @if ($showSelectedVendorDetail && ($purchaseRequest->items ?? collect())->count() > 0)
             <tfoot>
                 <tr class="bg-slate-100">
-                    <td colspan="9" class="align-middle border border-slate-300 px-3 py-4 text-right text-base font-bold text-slate-950">
+                    <td colspan="9" class="align-middle border border-slate-300 px-2 py-3 text-right text-sm font-bold text-slate-950">
                         Grand Total
                     </td>
 
-                    <td class="align-middle border border-slate-300 px-3 py-4 text-right text-base font-bold text-slate-950">
+                    <td class="align-middle border border-slate-300 px-2 py-3 text-right text-sm font-bold text-slate-950" data-summary-grand-total>
                         {{ $formatRupiah($selectedGrandTotal) }}
                     </td>
+
+                    @if ($canEditPurchasingPaymentSummary)
+                    <td colspan="2" class="align-middle border border-slate-300 px-2 py-3"></td>
+                    @endif
                 </tr>
             </tfoot>
             @endif
         </table>
     </div>
+
+    @if ($canEditPurchasingPaymentSummary)
+        <div class="flex justify-end border-t border-slate-300 bg-white p-3">
+            <button type="submit" class="inline-flex h-9 items-center justify-center bg-slate-950 px-5 text-xs font-bold text-white transition hover:bg-slate-800">
+                Save Payment Summary
+            </button>
+        </div>
+    </form>
+    @endif
 </section>
 
-@if ($canEditReturnedPr)
+@if ($canEditRequesterPr)
 <section class="mt-6 border border-slate-300 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between gap-4">
         <div>
-            <h3 class="text-lg font-bold text-yellow-950">
-
+            <h3 class="text-lg font-bold text-slate-950">
+                Requester Action
             </h3>
 
-            <p class="mt-1 text-sm font-medium text-yellow-800">
+            <p class="mt-1 text-sm text-slate-600">
+                {{ (string) $purchaseRequest->status === 'draft' ? 'Draft PR can still be edited before submission.' : 'Returned PR can be revised and submitted again.' }}
             </p>
         </div>
 
-        <a href="/purchasing-lite/purchase-requests/{{ $purchaseRequest->id }}/edit" class="inline-flex h-11 items-center justify-center border border-yellow-600 bg-yellow-500 px-8 text-sm font-bold text-slate-950 transition hover:bg-yellow-400">
-            Edit PR
-        </a>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+            @if ($canDeleteDraftPr)
+            <form method="POST" action="{{ route('purchasing-lite.purchase-requests.destroy', $purchaseRequest) }}" onsubmit="return confirm('Delete this draft PR? This action cannot be undone.');">
+                @csrf
+                @method('DELETE')
+
+                <button type="submit" class="inline-flex h-10 items-center justify-center border border-red-700 bg-white px-6 text-sm font-bold text-red-800 transition hover:bg-red-50">
+                    Delete PR
+                </button>
+            </form>
+            @endif
+
+            <a href="{{ route('purchasing-lite.purchase-requests.edit', $purchaseRequest) }}" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-6 text-sm font-bold text-slate-950 transition hover:bg-slate-100">
+                Edit PR
+            </a>
+        </div>
     </div>
 </section>
 @endif
 
-<section class="mt-6 border border-slate-300 bg-white shadow-sm">
-    <button type="button" id="toggle-history-button" class="flex w-full items-center justify-between border-b border-slate-300 px-5 py-4 text-left">
+<section class="mt-4 border border-slate-300 bg-white shadow-sm">
+    <button type="button" id="toggle-history-button" class="flex w-full items-center justify-between border-b border-slate-300 px-4 py-3 text-left">
         <span>
-            <span class="block text-lg font-bold text-slate-950">
+            <span class="block text-base font-bold text-slate-950">
                 PR History
             </span>
 
-            <span class="mt-1 block text-sm text-slate-600">
+            <span class="mt-1 block text-xs text-slate-600">
                 Show status changes, approvals, remarks, and handover history.
             </span>
         </span>
 
-        <span id="toggle-history-label" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-5 text-sm font-bold text-slate-950 hover:bg-slate-100">
+        <span id="toggle-history-label" class="inline-flex h-8 items-center justify-center border border-slate-950 bg-white px-4 text-xs font-bold text-slate-950 hover:bg-slate-100">
             Show History
         </span>
     </button>
@@ -1396,6 +1569,113 @@ $purchaseRequest->handover_remarks
             historyLabel.textContent = 'Show History';
         }
     });
+
+    const parseSummaryMoney = function (value) {
+        value = String(value || '').trim().replace(/[^0-9.,]/g, '');
+
+        if (value === '') {
+            return 0;
+        }
+
+        const hasComma = value.includes(',');
+        const hasDot = value.includes('.');
+
+        if (hasComma && hasDot) {
+            if (value.lastIndexOf(',') > value.lastIndexOf('.')) {
+                value = value.replace(/\./g, '').replace(',', '.');
+            } else {
+                value = value.replace(/,/g, '');
+            }
+
+            return Number(value) || 0;
+        }
+
+        if (hasComma) {
+            const parts = value.split(',');
+            const lastPart = parts[parts.length - 1] || '';
+            value = lastPart.length === 3 ? value.replace(/,/g, '') : value.replace(',', '.');
+
+            return Number(value) || 0;
+        }
+
+        if (hasDot) {
+            const parts = value.split('.');
+            const lastPart = parts[parts.length - 1] || '';
+
+            if (lastPart.length === 3) {
+                value = value.replace(/\./g, '');
+            }
+
+            return Number(value) || 0;
+        }
+
+        return Number(value) || 0;
+    };
+
+    const formatSummaryRupiah = function (value) {
+        return 'Rp ' + Math.round(Number(value) || 0).toLocaleString('id-ID');
+    };
+
+    const updatePaymentSummaryTotals = function () {
+        let grandTotal = 0;
+
+        document.querySelectorAll('[data-summary-price-input]').forEach(function (input) {
+            const row = input.closest('tr');
+            const quantity = Number(input.getAttribute('data-quantity') || 0);
+            const total = parseSummaryMoney(input.value) * quantity;
+            const totalCell = row ? row.querySelector('[data-summary-row-total]') : null;
+
+            if (totalCell) {
+                totalCell.textContent = formatSummaryRupiah(total);
+            }
+
+            grandTotal += total;
+        });
+
+        const grandTotalCell = document.querySelector('[data-summary-grand-total]');
+
+        if (grandTotalCell) {
+            grandTotalCell.textContent = formatSummaryRupiah(grandTotal);
+        }
+    };
+
+    document.addEventListener('change', function (event) {
+        const vendorOption = event.target.closest('[data-summary-vendor-option]');
+
+        if (! vendorOption) {
+            return;
+        }
+
+        const row = vendorOption.closest('tr');
+        const priceInput = row ? row.querySelector('[data-summary-price-input]') : null;
+
+        if (priceInput) {
+            const unitPrice = Number(vendorOption.getAttribute('data-unit-price') || 0);
+            const quantity = Number(vendorOption.getAttribute('data-quantity') || 0);
+
+            priceInput.value = formatSummaryRupiah(unitPrice);
+            priceInput.setAttribute('data-quantity', String(quantity));
+        }
+
+        updatePaymentSummaryTotals();
+    });
+
+    document.addEventListener('input', function (event) {
+        if (event.target.closest('[data-summary-price-input]')) {
+            updatePaymentSummaryTotals();
+        }
+    });
+
+    document.addEventListener('blur', function (event) {
+        const priceInput = event.target.closest('[data-summary-price-input]');
+
+        if (priceInput) {
+            priceInput.value = formatSummaryRupiah(parseSummaryMoney(priceInput.value));
+            updatePaymentSummaryTotals();
+        }
+    }, true);
+
+    updatePaymentSummaryTotals();
 
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') {

@@ -227,6 +227,18 @@ return 'New';
 return str_replace('Owner', 'OR', ucwords(str_replace('_', ' ', $status)));
 };
 
+$getFcStatusBadgeClass = function ($status) {
+$status = (string) $status;
+
+return match ($status) {
+'submitted_to_financial_controller' => 'border-blue-600 bg-blue-50 text-blue-900',
+'on_progress' => 'border-orange-500 bg-orange-50 text-orange-900',
+'waiting_payment' => 'border-yellow-600 bg-yellow-50 text-yellow-900',
+'paid_to_vendor' => 'border-green-700 bg-green-50 text-green-900',
+default => 'border-slate-400 bg-slate-100 text-slate-800',
+};
+};
+
 $getNextFcAction = function ($status) {
 $status = (string) $status;
 
@@ -261,23 +273,79 @@ return null;
 };
 @endphp
 
-<section class="mb-6 border border-slate-300 bg-white p-6 shadow-sm">
+@push('styles')
+<style>
+    .fc-pr-table {
+        min-width: 2420px;
+        table-layout: fixed;
+        font-size: 10px;
+        line-height: 1.15;
+    }
+
+    .fc-pr-table th,
+    .fc-pr-table td {
+        padding: 3px 5px;
+        font-size: 10px;
+        line-height: 1.15;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .fc-pr-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        background: #f1f5f9;
+    }
+
+    .fc-pr-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+
+    .fc-pr-table img.fc-pr-thumb {
+        height: 28px;
+        width: 28px;
+    }
+
+    .fc-pr-table .fc-pr-badge,
+    .fc-pr-table button {
+        font-size: 10px;
+        line-height: 1.15;
+    }
+
+    .fc-pr-table .fc-text-left {
+        text-align: left;
+    }
+</style>
+@endpush
+
+<section class="border border-slate-300 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between gap-4">
         <div>
-            <h2 class="text-xl font-bold text-slate-950">
+            <h2 class="text-lg font-bold text-slate-950">
                 Financial Controller Dashboard
             </h2>
 
-            <p class="mt-1 text-base text-slate-600">
+            <p class="mt-1 text-sm text-slate-600">
                 Welcome, {{ $user->name }}.
             </p>
         </div>
 
-        <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-6 text-sm font-bold text-slate-950 transition hover:bg-slate-100">
-            All PR List
-        </a>
+        <div class="flex items-center gap-3">
+            <a href="{{ route('purchasing-lite.purchasing.payment-summary') }}" class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
+                General Payment Summary
+            </a>
+
+            <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-6 text-sm font-bold text-slate-950 transition hover:bg-slate-100">
+                All PR List
+            </a>
+        </div>
     </div>
 </section>
+
+<div class="h-5" aria-hidden="true"></div>
 
 @if ($errors->any())
 <section class="mb-6 border border-red-300 bg-red-50 px-5 py-4 text-sm font-medium text-red-800">
@@ -298,30 +366,52 @@ return null;
         </h3>
     </div>
 
-    <div class="max-h-[75vh] overflow-auto">
-        <table class="min-w-[1900px] border-collapse text-sm">
+    <div class="overflow-auto" style="max-height: calc(100vh - 180px);">
+        <table class="fc-pr-table border-collapse">
+            <colgroup>
+                <col style="width: 45px;">
+                <col style="width: 150px;">
+                <col style="width: 130px;">
+                <col style="width: 150px;">
+                <col style="width: 100px;">
+                <col style="width: 100px;">
+                <col style="width: 130px;">
+                <col style="width: 170px;">
+                <col style="width: 300px;">
+                <col style="width: 70px;">
+                <col style="width: 260px;">
+                <col style="width: 55px;">
+                <col style="width: 80px;">
+                <col style="width: 70px;">
+                <col style="width: 180px;">
+                <col style="width: 130px;">
+                <col style="width: 130px;">
+                <col style="width: 140px;">
+                <col style="width: 130px;">
+                <col style="width: 150px;">
+            </colgroup>
             <thead>
                 <tr class="bg-slate-100">
-                    <th class="sticky top-0 z-20 w-12 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">No</th>
-                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Number</th>
-                    <th class="sticky top-0 z-20 w-36 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Requester</th>
-                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Department</th>
-                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Date Needed</th>
-                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Created Date</th>
-                    <th class="sticky top-0 z-20 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Priority</th>
-                    <th class="sticky top-0 z-20 w-52 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">PR Title</th>
-                    <th class="sticky top-0 z-20 w-56 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Remarks</th>
-                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">File</th>
-                    <th class="sticky top-0 z-20 min-w-[260px] align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Item</th>
-                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Qty</th>
-                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Unit</th>
-                    <th class="sticky top-0 z-20 w-20 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Stock</th>
-                    <th class="sticky top-0 z-20 min-w-[190px] align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Vendor</th>
-                    <th class="sticky top-0 z-20 w-36 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Price / Unit</th>
-                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Total</th>
-                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Grand Total</th>
-                    <th class="sticky top-0 z-20 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">FC Status</th>
-                    <th class="sticky top-0 z-20 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-3 text-center font-bold text-slate-800">Next Action</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">No</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">PR Number</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Requester</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Department</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Date Needed</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Created Date</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">PR Priority</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">PR Title</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Remarks</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">File</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Item</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Qty</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Unit</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Stock</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Vendor</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Price / Unit</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Total</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Grand Total</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">FC Status</th>
+                    <th class="align-middle border border-slate-300 bg-slate-100 text-center font-bold text-slate-800">Next Action</th>
                 </tr>
             </thead>
 
@@ -345,178 +435,113 @@ return null;
 
                 $fcStatus = (string) ($purchaseRequest->financial_controller_status ?? $purchaseRequest->status ?? 'submitted_to_financial_controller');
                 $fcStatusLabel = $getFcStatusLabel($fcStatus);
+                $fcStatusBadgeClass = $getFcStatusBadgeClass($fcStatus);
                 $nextAction = $getNextFcAction($fcStatus);
                 $groupTintClass = $loop->iteration % 2 === 0 ? 'bg-slate-50' : 'bg-white';
-                $summaryCellClass = 'align-top border border-slate-300 px-3 py-4 text-slate-800 ' . $groupTintClass;
                 @endphp
-
-                <tr>
-                    <td colspan="20" class="border-x border-t-4 border-x-slate-300 border-t-slate-500 bg-slate-800 px-4 py-3 text-white">
-                        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <div class="flex flex-wrap items-center gap-3">
-                                <span class="text-base font-bold">{{ $prNumber }}</span>
-                                <span class="text-sm font-bold">{{ $purchaseRequest->title }}</span>
-                                <span class="text-sm text-slate-200">{{ $purchaseRequest->requester_name ?? '-' }} / {{ $purchaseRequest->department_name ?? '-' }}</span>
-                            </div>
-
-                            <div class="flex flex-wrap items-center gap-2 text-sm font-bold">
-                                <span class="border border-white/30 px-3 py-1">{{ $formatRupiah($grandTotal) }}</span>
-                                <span class="border border-white/30 px-3 py-1">{{ $fcStatusLabel }}</span>
-                            </div>
-                        </div>
-                    </td>
-                </tr>
 
                 @if ($items->count() > 0)
                 @foreach ($items as $item)
                 @php
                 $itemPhotos = $item->item_photos;
 
-                if (! is_array($itemPhotos) || count($itemPhotos) < 1) { $itemPhotos=$item->item_photo ? [$item->item_photo] : [];
-                    }
+                if (! is_array($itemPhotos) || count($itemPhotos) < 1) {
+                $itemPhotos = $item->item_photo ? [$item->item_photo] : [];
+                }
 
-                    $selectedVendorItem = $getSelectedVendorItem($purchaseRequest, $item);
-                    @endphp
+                $firstPhoto = $itemPhotos[0] ?? null;
+                $selectedVendorItem = $getSelectedVendorItem($purchaseRequest, $item);
+                @endphp
 
-                    <tr class="{{ $loop->iteration % 2 === 0 ? 'bg-slate-50/70' : 'bg-white' }} hover:bg-blue-50/40">
-                        @if ($loop->first)
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center font-bold text-slate-700">
-                            {{ $loop->parent->iteration }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} font-bold text-slate-950">
-                            {{ $prNumber }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }}">
-                            {{ $purchaseRequest->requester_name ?? '-' }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }}">
-                            {{ $purchaseRequest->department_name ?? '-' }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
-                            {{ $purchaseRequest->date_needed ? \Carbon\Carbon::parse($purchaseRequest->date_needed)->format('d M Y') : '-' }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
-                            {{ $purchaseRequest->created_at ? \Carbon\Carbon::parse($purchaseRequest->created_at)->format('d M Y') : '-' }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} text-center">
-                            <span class="inline-flex min-w-[90px] items-center justify-center border px-2 py-2 text-xs font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
-                                {{ $formatPriority($priority) }}
-                            </span>
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} font-bold text-slate-950">
-                            {{ $purchaseRequest->title }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="{{ $summaryCellClass }} whitespace-pre-line leading-6">
-                            {{ $purchaseRequest->requester_remarks ?: '-' }}
-                        </td>
-                        @endif
-
-                        <td class="align-middle border border-slate-300 px-2 py-2">
-                            @if (! empty($itemPhotos))
-                            <div class="flex flex-wrap justify-center gap-1">
-                                @foreach ($itemPhotos as $photo)
-                                <a href="{{ asset('storage/' . ltrim($photo, '/')) }}" target="_blank" class="block">
-                                    @if ($isAttachmentImage($photo))
-                                    <img src="{{ asset('storage/' . ltrim($photo, '/')) }}" alt="" class="h-12 w-12 border border-slate-300 object-cover">
-                                    @else
-                                    <span class="flex h-12 w-24 items-center border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-700">
-                                        {{ basename($photo) }}
-                                    </span>
-                                    @endif
-                                </a>
-                                @endforeach
-                            </div>
-                            @else
-                            <span class="block text-center text-slate-400">-</span>
-                            @endif
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-3 py-3 font-bold leading-5 text-slate-950">
-                            {{ $item->item_name }}
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-2 py-3 text-right text-slate-800">
-                            {{ $formatQty($item->quantity) }}
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-2 py-3 text-slate-800">
-                            {{ $item->unit ?: '-' }}
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-2 py-3 text-right font-bold text-slate-950">
-                            {{ $item->stock !== null ? $formatQty($item->stock) : '-' }}
-                        </td>
-
-                        @if ($selectedVendorItem)
-                        <td class="align-middle border border-slate-300 px-2 py-3 font-bold text-slate-950">
-                            {{ $selectedVendorItem['vendor_name'] }}
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-2 py-3 text-right font-bold text-slate-950">
-                            {{ $formatRupiah($selectedVendorItem['unit_price']) }}
-                        </td>
-
-                        <td class="align-middle border border-slate-300 px-2 py-3 text-right font-bold text-slate-950">
-                            {{ $formatRupiah($selectedVendorItem['total_price']) }}
-                        </td>
-                        @else
-                        <td colspan="3" class="align-middle border border-red-300 bg-red-50 px-2 py-3 text-center font-bold text-red-700">
-                            No selected vendor
-                        </td>
-                        @endif
-
-                        @if ($loop->first)
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-100 px-3 py-4 text-right text-base font-bold text-slate-950">
-                            {{ $formatRupiah($grandTotal) }}
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 px-3 py-4 text-center font-bold text-slate-950">
-                            <span class="inline-flex min-w-[92px] items-center justify-center border border-slate-300 bg-white px-3 py-2 text-xs uppercase text-slate-800">
-                                {{ $fcStatusLabel }}
-                            </span>
-                        </td>
-
-                        <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 px-3 py-4">
-                            @if ($nextAction)
-                            <form method="POST" action="{{ route($nextAction['route'], $purchaseRequest) }}" onsubmit="return confirm('{{ $nextAction['confirm'] }}');">
-                                @csrf
-
-                                <button type="submit" class="inline-flex h-10 w-full items-center justify-center px-3 text-xs font-bold {{ $nextAction['class'] }}">
-                                    {{ $nextAction['label'] }}
-                                </button>
-                            </form>
-                            @else
-                            <div class="border border-slate-300 bg-slate-50 px-3 py-3 text-center text-xs font-bold text-slate-500">
-                                No Action
-                            </div>
-                            @endif
-                        </td>
-                        @endif
-                    </tr>
-                    @endforeach
-                    @else
-                    <tr>
-                        <td colspan="20" class="align-middle border border-slate-300 px-4 py-8 text-center text-base text-slate-500">
-                            No item data.
-                        </td>
-                    </tr>
+                <tr class="{{ $groupTintClass }} hover:bg-blue-50/40">
+                    @if ($loop->first)
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 font-bold text-slate-700">{{ $loop->parent->iteration }}</td>
+                    <td rowspan="{{ $rowspan }}" class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $prNumber }}</td>
+                    <td rowspan="{{ $rowspan }}" class="fc-text-left align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->requester_name ?? '-' }}</td>
+                    <td rowspan="{{ $rowspan }}" class="fc-text-left align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->department_name ?? '-' }}</td>
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->date_needed ? \Carbon\Carbon::parse($purchaseRequest->date_needed)->format('d M Y') : '-' }}</td>
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->created_at ? \Carbon\Carbon::parse($purchaseRequest->created_at)->format('d M Y') : '-' }}</td>
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300">
+                        <span class="fc-pr-badge inline-flex min-w-[68px] items-center justify-center border px-1.5 py-0.5 font-bold uppercase {{ $priorityBadgeClass($priority) }}">
+                            {{ $formatPriority($priority) }}
+                        </span>
+                    </td>
+                    <td rowspan="{{ $rowspan }}" class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $purchaseRequest->title }}</td>
+                    <td rowspan="{{ $rowspan }}" class="fc-text-left align-middle whitespace-pre-line border border-slate-300 text-slate-800">{{ $purchaseRequest->requester_remarks ?: '-' }}</td>
                     @endif
+                    <td class="align-middle border border-slate-300">
+                        @if ($firstPhoto)
+                        <a href="{{ asset('storage/' . ltrim($firstPhoto, '/')) }}" target="_blank" class="inline-block">
+                            @if ($isAttachmentImage($firstPhoto))
+                            <img src="{{ asset('storage/' . ltrim($firstPhoto, '/')) }}" alt="" class="fc-pr-thumb border border-slate-300 object-cover">
+                            @else
+                            <span class="flex h-8 w-8 items-center justify-center border border-slate-300 bg-slate-50 text-[9px] font-bold text-slate-700">File</span>
+                            @endif
+                        </a>
+                        @else
+                        <span class="text-slate-400">-</span>
+                        @endif
+                    </td>
+                    <td class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $item->item_name }}</td>
+                    <td class="align-middle border border-slate-300 text-slate-800">{{ $formatQty($item->quantity) }}</td>
+                    <td class="align-middle border border-slate-300 text-slate-800">{{ $item->unit ?: '-' }}</td>
+                    <td class="align-middle border border-slate-300 font-bold text-slate-950">{{ $item->stock !== null ? $formatQty($item->stock) : '-' }}</td>
+                    <td class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $selectedVendorItem['vendor_name'] ?? 'No selected vendor' }}</td>
+                    <td class="align-middle border border-slate-300 font-bold text-slate-950">{{ $selectedVendorItem ? $formatRupiah($selectedVendorItem['unit_price']) : '-' }}</td>
+                    <td class="align-middle border border-slate-300 font-bold text-slate-950">{{ $selectedVendorItem ? $formatRupiah($selectedVendorItem['total_price']) : '-' }}</td>
+                    @if ($loop->first)
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-100 font-bold text-slate-950">{{ $formatRupiah($grandTotal) }}</td>
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50 font-bold text-slate-950">
+                        <span class="fc-pr-badge inline-flex min-w-[78px] items-center justify-center border px-1.5 py-0.5 font-bold uppercase {{ $fcStatusBadgeClass }}">
+                            {{ $fcStatusLabel }}
+                        </span>
+                    </td>
+                    <td rowspan="{{ $rowspan }}" class="align-middle border border-slate-300 bg-slate-50">
+                        @if ($nextAction)
+                        <form method="POST" action="{{ route($nextAction['route'], $purchaseRequest) }}" onsubmit="return confirm('{{ $nextAction['confirm'] }}');">
+                            @csrf
 
-                    @empty
-                    <tr>
-                        <td colspan="20" class="align-middle border border-slate-300 px-4 py-8 text-center text-base text-slate-500">
-                            No PR waiting for Financial Controller.
-                        </td>
-                    </tr>
-                    @endforelse
+                            <button type="submit" class="inline-flex h-8 w-full items-center justify-center px-2 font-bold {{ $nextAction['class'] }}">
+                                {{ $nextAction['label'] }}
+                            </button>
+                        </form>
+                        @else
+                        <div class="border border-slate-300 bg-slate-50 px-2 py-1.5 font-bold text-slate-500">
+                            No Action
+                        </div>
+                        @endif
+                    </td>
+                    @endif
+                </tr>
+                @endforeach
+                @else
+                <tr class="{{ $groupTintClass }} hover:bg-blue-50/40">
+                    <td class="align-middle border border-slate-300 font-bold text-slate-700">{{ $loop->iteration }}</td>
+                    <td class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $prNumber }}</td>
+                    <td class="fc-text-left align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->requester_name ?? '-' }}</td>
+                    <td class="fc-text-left align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->department_name ?? '-' }}</td>
+                    <td class="align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->date_needed ? \Carbon\Carbon::parse($purchaseRequest->date_needed)->format('d M Y') : '-' }}</td>
+                    <td class="align-middle border border-slate-300 text-slate-800">{{ $purchaseRequest->created_at ? \Carbon\Carbon::parse($purchaseRequest->created_at)->format('d M Y') : '-' }}</td>
+                    <td class="align-middle border border-slate-300">
+                        <span class="fc-pr-badge inline-flex min-w-[68px] items-center justify-center border px-1.5 py-0.5 font-bold uppercase {{ $priorityBadgeClass($priority) }}">{{ $formatPriority($priority) }}</span>
+                    </td>
+                    <td class="fc-text-left align-middle border border-slate-300 font-bold text-slate-950">{{ $purchaseRequest->title }}</td>
+                    <td class="fc-text-left align-middle whitespace-pre-line border border-slate-300 text-slate-800">{{ $purchaseRequest->requester_remarks ?: '-' }}</td>
+                    <td colspan="8" class="align-middle border border-slate-300 text-slate-500">No item data.</td>
+                    <td class="align-middle border border-slate-300 bg-slate-100 font-bold text-slate-950">Rp 0</td>
+                    <td class="align-middle border border-slate-300 bg-slate-50 font-bold text-slate-950">
+                        <span class="fc-pr-badge inline-flex min-w-[78px] items-center justify-center border px-1.5 py-0.5 font-bold uppercase {{ $fcStatusBadgeClass }}">{{ $fcStatusLabel }}</span>
+                    </td>
+                    <td class="align-middle border border-slate-300 bg-slate-50">-</td>
+                </tr>
+                @endif
+                @empty
+                <tr>
+                    <td colspan="20" class="align-middle border border-slate-300 px-2 py-5 text-center text-sm text-slate-500">
+                        No PR waiting for Financial Controller.
+                    </td>
+                </tr>
+                @endforelse
             </tbody>
         </table>
     </div>

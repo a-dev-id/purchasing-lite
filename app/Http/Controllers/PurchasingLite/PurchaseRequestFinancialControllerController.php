@@ -48,7 +48,19 @@ class PurchaseRequestFinancialControllerController extends Controller
             purchaseRequest: $purchaseRequest,
             statusLabel: 'On Progress',
             remarks: $remarks,
-            buttonLabel: 'Open PR'
+            buttonLabel: 'Open PR',
+            roles: ['cost_control']
+        );
+
+        app(PurchasingLiteEmailService::class)->sendToRoles(
+            purchaseRequest: $purchaseRequest,
+            roles: ['purchasing'],
+            subject: 'PR On Progress - Summary Needed - ' . $this->getPurchaseRequestNumber($purchaseRequest),
+            title: 'PR Is On Progress',
+            messageText: 'Financial Controller has marked this purchase request as On Progress. Purchasing can now fill the general payment summary.',
+            buttonLabel: 'Open General Summary',
+            buttonUrl: route('purchasing-lite.purchasing.payment-summary'),
+            remarks: $remarks
         );
 
         return redirect()
@@ -157,16 +169,14 @@ class PurchaseRequestFinancialControllerController extends Controller
         PurchaseRequest $purchaseRequest,
         string $statusLabel,
         string $remarks,
-        string $buttonLabel
+        string $buttonLabel,
+        array $roles = ['cost_control', 'purchasing']
     ): void {
         $prNumber = $this->getPurchaseRequestNumber($purchaseRequest);
 
         app(PurchasingLiteEmailService::class)->sendToRolesAndRequester(
             purchaseRequest: $purchaseRequest,
-            roles: [
-                'cost_control',
-                'purchasing',
-            ],
+            roles: $roles,
             subject: 'PR Updated by Financial Controller - ' . $prNumber,
             title: 'PR Status Updated by Financial Controller',
             messageText: 'Financial Controller has updated this purchase request status to ' . $statusLabel . '.',

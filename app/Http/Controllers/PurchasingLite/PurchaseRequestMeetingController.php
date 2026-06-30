@@ -25,6 +25,7 @@ class PurchaseRequestMeetingController extends Controller
         $selectedMonth = (int) $request->input('month', now()->month);
         $selectedYear = (int) $request->input('year', now()->year);
         $selectedStatus = trim((string) $request->input('status', ''));
+        $selectedPrNumber = trim((string) $request->input('pr_number', ''));
 
         if ($selectedMonth < 1 || $selectedMonth > 12) {
             $selectedMonth = now()->month;
@@ -49,6 +50,19 @@ class PurchaseRequestMeetingController extends Controller
             $purchaseRequestsQuery->where('status', $selectedStatus);
         }
 
+        if ($selectedPrNumber !== '') {
+            $numberColumns = collect(['pr_number', 'request_number'])
+                ->filter(fn ($column) => Schema::hasColumn((new PurchaseRequest())->getTable(), $column))
+                ->values();
+
+            $purchaseRequestsQuery->where(function ($query) use ($selectedPrNumber, $numberColumns) {
+                foreach ($numberColumns as $index => $column) {
+                    $method = $index === 0 ? 'where' : 'orWhere';
+                    $query->{$method}($column, 'like', '%' . $selectedPrNumber . '%');
+                }
+            });
+        }
+
         $purchaseRequests = $purchaseRequestsQuery->get();
 
         $availableStatuses = PurchaseRequest::query()
@@ -67,6 +81,7 @@ class PurchaseRequestMeetingController extends Controller
             'selectedMonth' => $selectedMonth,
             'selectedYear' => $selectedYear,
             'selectedStatus' => $selectedStatus,
+            'selectedPrNumber' => $selectedPrNumber,
             'isFinancialController' => $this->userIsFinancialController($user),
         ]);
     }
@@ -81,7 +96,7 @@ class PurchaseRequestMeetingController extends Controller
 
         if (! $this->userIsFinancialController($user)) {
             return redirect()
-                ->route('purchasing-lite.purchase-requests.meeting-list', $request->only(['month', 'year', 'status', 'department']))
+                ->route('purchasing-lite.purchase-requests.meeting-list', $request->only(['month', 'year', 'status', 'department', 'pr_number']))
                 ->with('error', 'Only Financial Controller can update PR status from the meeting page.');
         }
 
@@ -92,6 +107,7 @@ class PurchaseRequestMeetingController extends Controller
             'year' => ['nullable', 'integer'],
             'status' => ['nullable', 'string', 'max:100'],
             'department' => ['nullable', 'string', 'max:191'],
+            'pr_number' => ['nullable', 'string', 'max:191'],
         ]);
 
         $newStatus = trim((string) $validated['new_status']);
@@ -144,6 +160,7 @@ class PurchaseRequestMeetingController extends Controller
                 'year' => $validated['year'] ?? now()->year,
                 'status' => $validated['status'] ?? '',
                 'department' => $validated['department'] ?? '',
+                'pr_number' => $validated['pr_number'] ?? '',
             ])
             ->with('success', 'PR status has been updated.');
     }

@@ -219,11 +219,17 @@ class PurchaseRequestController extends Controller
                 ->with('error', 'You are not allowed to view this purchase request.');
         }
 
-        $purchaseRequest->load(['items', 'logs.user']);
+        $purchaseRequest->load([
+            'items',
+            'logs.user',
+            'vendorOffers.vendor',
+            'vendorOffers.offerItems',
+        ]);
 
         return view('purchasing-lite.purchase-requests.show', [
             'user' => $user,
             'purchaseRequest' => $purchaseRequest,
+            'vendorBidOptions' => $this->getVendorBidOptionsForSummary($purchaseRequest),
         ]);
     }
 
@@ -304,6 +310,43 @@ class PurchaseRequestController extends Controller
         }
     }
 
+    public function destroy(PurchaseRequest $purchaseRequest)
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanEditDraft($user, $purchaseRequest)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to delete this purchase request.');
+        }
+
+        if ((string) $purchaseRequest->status !== 'draft') {
+            return redirect()
+                ->route('purchasing-lite.purchase-requests.show', $purchaseRequest)
+                ->with('error', 'Only draft purchase requests can be deleted.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $purchaseRequest->delete();
+
+            DB::commit();
+
+            return redirect('/purchasing-lite/dashboard')
+                ->with('success', 'Draft purchase request has been deleted.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->route('purchasing-lite.purchase-requests.show', $purchaseRequest)
+                ->with('error', 'Failed to delete purchase request. ' . $e->getMessage());
+        }
+    }
+
     public function markOnShipping(Request $request, PurchaseRequest $purchaseRequest)
     {
         if (! Auth::check()) {
@@ -372,6 +415,331 @@ class PurchaseRequestController extends Controller
                 ->route('purchasing-lite.purchase-requests.show', $purchaseRequest)
                 ->with('error', 'Failed to update PR. ' . $e->getMessage());
         }
+    }
+
+    public function generalPaymentSummary()
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanViewGeneralPaymentSummary($user)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to view the payment summary.');
+        }
+
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+        $vendorBidOptions = [];
+
+        foreach ($purchaseRequests as $purchaseRequest) {
+            $vendorBidOptions[$purchaseRequest->id] = $this->getVendorBidOptionsForSummary($purchaseRequest);
+        }
+
+        return view('purchasing-lite.purchase-requests.payment-summary', [
+            'user' => $user,
+            'purchaseRequests' => $purchaseRequests,
+            'vendorBidOptions' => $vendorBidOptions,
+            'canEditPaymentSummary' => $this->userCanEditGeneralPaymentSummary($user),
+        ]);
+    }
+
+    public function saveGeneralPaymentSummary(Request $request)
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanEditGeneralPaymentSummary($user)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to update this payment summary.');
+        }
+
+        $validated = $request->validate([
+            'items' => ['nullable', 'array'],
+            'items.*.selected_offer_item_id' => ['nullable', 'integer'],
+            'items.*.unit_price' => ['nullable', 'string', 'max:100'],
+            'items.*.payment_method' => ['nullable', 'string', 'in:cash,credit,transfer'],
+            'items.*.payment_note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $itemUpdates = $validated['items'] ?? [];
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($purchaseRequests as $purchaseRequest) {
+                $prHadUpdates = false;
+
+                foreach ($purchaseRequest->items as $item) {
+                    if (! array_key_exists($item->id, $itemUpdates)) {
+                        continue;
+                    }
+
+                    $update = $itemUpdates[$item->id] ?? [];
+                    $selectedOfferItemId = (int) ($update['selected_offer_item_id'] ?? 0);
+
+                    if ($selectedOfferItemId > 0) {
+                        $selectedOfferItem = DB::table('purchase_request_vendor_offer_items as offer_items')
+                            ->join('purchase_request_vendor_offers as offers', 'offers.id', '=', 'offer_items.purchase_request_vendor_offer_id')
+                            ->where('offers.purchase_request_id', $purchaseRequest->id)
+                            ->where('offer_items.purchase_request_item_id', $item->id)
+                            ->where('offer_items.id', $selectedOfferItemId)
+                            ->select([
+                                'offer_items.id',
+                                'offer_items.quantity',
+                            ])
+                            ->first();
+
+                        if (! $selectedOfferItem) {
+                            throw new \RuntimeException('Invalid vendor selection for item ' . $item->item_name . '.');
+                        }
+
+                        $unitPrice = $this->parseMoney((string) ($update['unit_price'] ?? ''));
+                        $quantity = (float) ($selectedOfferItem->quantity ?? $item->quantity ?? 1);
+
+                        $this->savePurchasingSummaryVendorSelection(
+                            $purchaseRequest,
+                            $item,
+                            $selectedOfferItemId,
+                            max(0, $unitPrice),
+                            $quantity
+                        );
+                    }
+
+                    $item->update([
+                            'purchasing_payment_method' => $update['payment_method'] ?? null,
+                            'purchasing_payment_note' => trim((string) ($update['payment_note'] ?? '')) ?: null,
+                    ]);
+
+                    $prHadUpdates = true;
+                }
+
+                if ($prHadUpdates) {
+                    PurchaseRequestLog::create([
+                        'purchase_request_id' => $purchaseRequest->id,
+                        'user_id' => $user->id,
+                        'role_name' => $user->role ?? null,
+                        'action' => 'purchasing_saved_general_payment_summary',
+                        'from_status' => $purchaseRequest->status,
+                        'to_status' => $purchaseRequest->status,
+                        'from_step' => $purchaseRequest->current_step,
+                        'to_step' => $purchaseRequest->current_step,
+                        'remarks' => 'Purchasing saved this PR from the general payment summary.',
+                        'acted_at' => now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()
+                ->route('purchasing-lite.purchasing.payment-summary')
+                ->with('success', 'General payment summary has been saved.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->route('purchasing-lite.purchasing.payment-summary')
+                ->with('error', 'Failed to save payment summary. ' . $e->getMessage());
+        }
+    }
+
+    public function downloadGeneralPaymentSummaryPdf()
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanViewGeneralPaymentSummary($user)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to download this payment summary.');
+        }
+
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+        $rows = [];
+        $grandTotal = 0;
+        $rowNumber = 1;
+
+        foreach ($purchaseRequests as $purchaseRequest) {
+            foreach ($purchaseRequest->items as $item) {
+                $selectedVendorItem = $this->getSelectedVendorItemForSummary($purchaseRequest, $item);
+                $totalPrice = (float) ($selectedVendorItem['total_price'] ?? 0);
+                $grandTotal += $totalPrice;
+
+                $rows[] = [
+                    'no' => (string) $rowNumber,
+                    'pr' => (string) ($purchaseRequest->pr_number ?? $purchaseRequest->id),
+                    'item' => (string) $item->item_name,
+                    'qty' => $this->formatQtyForSummary($item->quantity),
+                    'vendor' => (string) ($selectedVendorItem['vendor_name'] ?? '-'),
+                    'price' => $selectedVendorItem ? $this->formatRupiahForSummary($selectedVendorItem['unit_price']) : '-',
+                    'total' => $selectedVendorItem ? $this->formatRupiahForSummary($totalPrice) : '-',
+                    'total_value' => $totalPrice,
+                    'payment' => $this->formatPaymentMethodForSummary($item->purchasing_payment_method ?? null),
+                    'note' => (string) ($item->purchasing_payment_note ?: '-'),
+                ];
+
+                $rowNumber++;
+            }
+        }
+
+        $pdf = $this->makeGeneralPaymentSummaryPdf($rows, $grandTotal);
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="general-payment-summary.pdf"',
+        ]);
+    }
+
+    public function savePaymentSummary(Request $request, PurchaseRequest $purchaseRequest)
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanEditPurchasingPaymentSummary($user, $purchaseRequest)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to update this payment summary.');
+        }
+
+        $validated = $request->validate([
+            'items' => ['nullable', 'array'],
+            'items.*.selected_offer_item_id' => ['nullable', 'integer'],
+            'items.*.unit_price' => ['nullable', 'string', 'max:100'],
+            'items.*.payment_method' => ['nullable', 'string', 'in:cash,credit,transfer'],
+            'items.*.payment_note' => ['nullable', 'string', 'max:5000'],
+        ]);
+
+        $itemUpdates = $validated['items'] ?? [];
+
+        DB::beginTransaction();
+
+        try {
+            $purchaseRequest->load('items');
+
+            foreach ($purchaseRequest->items as $item) {
+                $update = $itemUpdates[$item->id] ?? [];
+                $selectedOfferItemId = (int) ($update['selected_offer_item_id'] ?? 0);
+
+                if ($selectedOfferItemId > 0) {
+                    $selectedOfferItem = DB::table('purchase_request_vendor_offer_items as offer_items')
+                        ->join('purchase_request_vendor_offers as offers', 'offers.id', '=', 'offer_items.purchase_request_vendor_offer_id')
+                        ->where('offers.purchase_request_id', $purchaseRequest->id)
+                        ->where('offer_items.purchase_request_item_id', $item->id)
+                        ->where('offer_items.id', $selectedOfferItemId)
+                        ->select([
+                            'offer_items.id',
+                            'offer_items.quantity',
+                            'offer_items.notes',
+                        ])
+                        ->first();
+
+                    if (! $selectedOfferItem) {
+                        throw new \RuntimeException('Invalid vendor selection for item ' . $item->item_name . '.');
+                    }
+
+                    $unitPrice = $this->parseMoney((string) ($update['unit_price'] ?? ''));
+
+                    if ($unitPrice < 0) {
+                        $unitPrice = 0;
+                    }
+
+                    $quantity = (float) ($selectedOfferItem->quantity ?? $item->quantity ?? 1);
+
+                    $this->savePurchasingSummaryVendorSelection(
+                        $purchaseRequest,
+                        $item,
+                        $selectedOfferItemId,
+                        $unitPrice,
+                        $quantity
+                    );
+                }
+
+                $item->update([
+                    'purchasing_payment_method' => $update['payment_method'] ?? null,
+                    'purchasing_payment_note' => trim((string) ($update['payment_note'] ?? '')) ?: null,
+                ]);
+            }
+
+            PurchaseRequestLog::create([
+                'purchase_request_id' => $purchaseRequest->id,
+                'user_id' => $user->id,
+                'role_name' => $user->role ?? null,
+                'action' => 'purchasing_saved_payment_summary',
+                'from_status' => $purchaseRequest->status,
+                'to_status' => $purchaseRequest->status,
+                'from_step' => $purchaseRequest->current_step,
+                'to_step' => $purchaseRequest->current_step,
+                'remarks' => 'Purchasing saved vendor, price, payment method, and note summary.',
+                'acted_at' => now(),
+            ]);
+
+            DB::commit();
+
+            return redirect()
+                ->route('purchasing-lite.purchase-requests.show', $purchaseRequest)
+                ->with('success', 'Payment summary has been saved.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->route('purchasing-lite.purchase-requests.show', $purchaseRequest)
+                ->with('error', 'Failed to save payment summary. ' . $e->getMessage());
+        }
+    }
+
+    public function downloadPaymentSummaryPdf(PurchaseRequest $purchaseRequest)
+    {
+        if (! Auth::check()) {
+            return redirect('/purchasing-lite/login');
+        }
+
+        $user = Auth::user();
+
+        if (! $this->userCanEditPurchasingPaymentSummary($user, $purchaseRequest)) {
+            return redirect('/purchasing-lite/dashboard')
+                ->with('error', 'You are not allowed to download this payment summary.');
+        }
+
+        $purchaseRequest->load('items');
+
+        $rows = [];
+        $grandTotal = 0;
+
+        foreach ($purchaseRequest->items as $index => $item) {
+            $selectedVendorItem = $this->getSelectedVendorItemForSummary($purchaseRequest, $item);
+            $totalPrice = (float) ($selectedVendorItem['total_price'] ?? 0);
+            $grandTotal += $totalPrice;
+
+            $rows[] = [
+                'no' => (string) ($index + 1),
+                'item' => (string) $item->item_name,
+                'qty' => $this->formatQtyForSummary($item->quantity),
+                'unit' => (string) ($item->unit ?: '-'),
+                'vendor' => (string) ($selectedVendorItem['vendor_name'] ?? '-'),
+                'price' => $selectedVendorItem ? $this->formatRupiahForSummary($selectedVendorItem['unit_price']) : '-',
+                'total' => $selectedVendorItem ? $this->formatRupiahForSummary($totalPrice) : '-',
+                'payment' => $this->formatPaymentMethodForSummary($item->purchasing_payment_method ?? null),
+                'note' => (string) ($item->purchasing_payment_note ?: '-'),
+            ];
+        }
+
+        $pdf = $this->makePaymentSummaryPdf($purchaseRequest, $rows, $grandTotal);
+        $fileName = 'payment-summary-' . Str::slug((string) ($purchaseRequest->pr_number ?? $purchaseRequest->id)) . '.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ]);
     }
 
     public function markReceived(Request $request, PurchaseRequest $purchaseRequest)
@@ -868,6 +1236,53 @@ class PurchaseRequestController extends Controller
             ], true);
     }
 
+    private function userCanEditPurchasingPaymentSummary($user, PurchaseRequest $purchaseRequest): bool
+    {
+        $role = $this->normalizedUserRole($user);
+
+        if ($role === 'admin') {
+            return true;
+        }
+
+        return $role === 'purchasing'
+            && (string) $purchaseRequest->status === 'on_progress';
+    }
+
+    private function userCanViewGeneralPaymentSummary($user): bool
+    {
+        $role = $this->normalizedUserRole($user);
+
+        return in_array($role, [
+            'admin',
+            'purchasing',
+            'financial controller',
+            'financialcontroller',
+            'fc',
+            'accounting',
+        ], true);
+    }
+
+    private function userCanEditGeneralPaymentSummary($user): bool
+    {
+        $role = $this->normalizedUserRole($user);
+
+        return in_array($role, ['admin', 'purchasing'], true);
+    }
+
+    private function generalPaymentSummaryPurchaseRequests()
+    {
+        return PurchaseRequest::query()
+            ->with([
+                'items' => function ($query) {
+                    $query->orderBy('sort_order')->orderBy('id');
+                },
+                'vendorOffers.vendor',
+                'vendorOffers.offerItems',
+            ])
+            ->where('status', 'on_progress')
+            ->latest('id');
+    }
+
     private function userCanViewPr($user, PurchaseRequest $purchaseRequest): bool
     {
         $role = $this->normalizedUserRole($user);
@@ -886,6 +1301,10 @@ class PurchaseRequestController extends Controller
             'financialcontroller',
             'fc',
         ], true)) {
+            return true;
+        }
+
+        if ($role === 'purchasing' && (string) $purchaseRequest->status === 'on_progress') {
             return true;
         }
 
@@ -926,6 +1345,623 @@ class PurchaseRequestController extends Controller
         $role = strtolower((string) ($user->role ?? $user->role_name ?? ''));
 
         return str_replace(['-', '_'], ' ', trim($role));
+    }
+
+    private function getVendorBidOptionsForSummary(PurchaseRequest $purchaseRequest): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('purchase_request_vendor_offer_items')) {
+            return [];
+        }
+
+        $rows = DB::table('purchase_request_vendor_offer_items as offer_items')
+            ->join('purchase_request_vendor_offers as offers', 'offers.id', '=', 'offer_items.purchase_request_vendor_offer_id')
+            ->leftJoin('vendors', 'vendors.id', '=', 'offers.vendor_id')
+            ->where('offers.purchase_request_id', $purchaseRequest->id)
+            ->select([
+                'offer_items.id as offer_item_id',
+                'offer_items.purchase_request_item_id',
+                'offer_items.unit_price',
+                'offer_items.quantity',
+                'offer_items.total_price',
+                'offer_items.notes',
+                'offers.id as vendor_offer_id',
+                'offers.vendor_name_snapshot',
+                'offers.is_selected_by_cost_control',
+                'vendors.name as vendor_name',
+            ])
+            ->orderBy('offer_items.purchase_request_item_id')
+            ->orderBy('offer_items.id')
+            ->get();
+
+        $options = [];
+
+        foreach ($rows as $row) {
+            $itemId = (int) $row->purchase_request_item_id;
+            $unitPrice = (float) ($row->unit_price ?? 0);
+            $quantity = (float) ($row->quantity ?? 0);
+            $totalPrice = $row->total_price !== null
+                ? (float) $row->total_price
+                : $unitPrice * $quantity;
+
+            $bidNumber = null;
+
+            if (preg_match('/Bid\s+([1-3])/i', (string) $row->notes, $matches)) {
+                $bidNumber = (int) $matches[1];
+            }
+
+            $options[$itemId][] = [
+                'offer_item_id' => (int) $row->offer_item_id,
+                'vendor_offer_id' => (int) $row->vendor_offer_id,
+                'vendor_name' => $row->vendor_name_snapshot ?: ($row->vendor_name ?? '-'),
+                'bid_number' => $bidNumber,
+                'unit_price' => $unitPrice,
+                'quantity' => $quantity,
+                'total_price' => $totalPrice,
+                'is_selected' => str_contains((string) $row->notes, 'SELECTED_BY_COST_CONTROL'),
+                'offer_is_selected' => (bool) $row->is_selected_by_cost_control,
+            ];
+        }
+
+        foreach ($options as $itemId => $itemOptions) {
+            $fallbackBidNumber = 1;
+
+            foreach ($itemOptions as $index => $itemOption) {
+                if (empty($itemOptions[$index]['bid_number'])) {
+                    $itemOptions[$index]['bid_number'] = $fallbackBidNumber;
+                }
+
+                $fallbackBidNumber++;
+            }
+
+            $hasSelectedOption = collect($itemOptions)->contains(fn($option) => (bool) $option['is_selected']);
+
+            if (! $hasSelectedOption) {
+                for ($index = count($itemOptions) - 1; $index >= 0; $index--) {
+                    if (! empty($itemOptions[$index]['offer_is_selected'])) {
+                        $itemOptions[$index]['is_selected'] = true;
+                        break;
+                    }
+                }
+            }
+
+            usort($itemOptions, function ($a, $b) {
+                return (($a['bid_number'] ?? 99) <=> ($b['bid_number'] ?? 99))
+                    ?: ((float) $a['unit_price'] <=> (float) $b['unit_price']);
+            });
+
+            $options[$itemId] = $itemOptions;
+        }
+
+        return $options;
+    }
+
+    private function savePurchasingSummaryVendorSelection(
+        PurchaseRequest $purchaseRequest,
+        PurchaseRequestItem $item,
+        int $selectedOfferItemId,
+        float $unitPrice,
+        float $quantity
+    ): void {
+        $offerItems = DB::table('purchase_request_vendor_offer_items as offer_items')
+            ->join('purchase_request_vendor_offers as offers', 'offers.id', '=', 'offer_items.purchase_request_vendor_offer_id')
+            ->where('offers.purchase_request_id', $purchaseRequest->id)
+            ->where('offer_items.purchase_request_item_id', $item->id)
+            ->select([
+                'offer_items.id',
+                'offer_items.notes',
+            ])
+            ->get();
+
+        foreach ($offerItems as $offerItem) {
+            $notes = $this->removeSelectedVendorMarker($offerItem->notes);
+
+            if ((int) $offerItem->id === $selectedOfferItemId) {
+                $notes = trim($notes);
+                $notes = $notes === ''
+                    ? 'SELECTED_BY_COST_CONTROL'
+                    : $notes . ' | SELECTED_BY_COST_CONTROL';
+            }
+
+            DB::table('purchase_request_vendor_offer_items')
+                ->where('id', $offerItem->id)
+                ->update([
+                    'notes' => $notes,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        DB::table('purchase_request_vendor_offer_items')
+            ->where('id', $selectedOfferItemId)
+            ->update([
+                'unit_price' => $unitPrice,
+                'quantity' => $quantity,
+                'total_price' => $unitPrice * $quantity,
+                'updated_at' => now(),
+            ]);
+
+        $vendorOfferIds = DB::table('purchase_request_vendor_offers')
+            ->where('purchase_request_id', $purchaseRequest->id)
+            ->pluck('id');
+
+        foreach ($vendorOfferIds as $vendorOfferId) {
+            $offerTotal = (float) DB::table('purchase_request_vendor_offer_items')
+                ->where('purchase_request_vendor_offer_id', $vendorOfferId)
+                ->sum('total_price');
+
+            $hasSelectedItem = DB::table('purchase_request_vendor_offer_items')
+                ->where('purchase_request_vendor_offer_id', $vendorOfferId)
+                ->where('notes', 'like', '%SELECTED_BY_COST_CONTROL%')
+                ->exists();
+
+            DB::table('purchase_request_vendor_offers')
+                ->where('id', $vendorOfferId)
+                ->update([
+                    'offer_total' => $offerTotal,
+                    'is_selected_by_cost_control' => $hasSelectedItem,
+                    'updated_at' => now(),
+                ]);
+        }
+    }
+
+    private function removeSelectedVendorMarker(?string $notes): string
+    {
+        $notes = (string) $notes;
+        $notes = str_replace('| SELECTED_BY_COST_CONTROL', '', $notes);
+        $notes = str_replace('SELECTED_BY_COST_CONTROL |', '', $notes);
+        $notes = str_replace('SELECTED_BY_COST_CONTROL', '', $notes);
+
+        return trim($notes);
+    }
+
+    private function parseMoney(string $value): float
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return 0;
+        }
+
+        $value = preg_replace('/[^0-9.,]/', '', $value);
+
+        if ($value === '') {
+            return 0;
+        }
+
+        $hasComma = str_contains($value, ',');
+        $hasDot = str_contains($value, '.');
+
+        if ($hasComma && $hasDot) {
+            $lastComma = strrpos($value, ',');
+            $lastDot = strrpos($value, '.');
+
+            if ($lastComma > $lastDot) {
+                $value = str_replace('.', '', $value);
+                $value = str_replace(',', '.', $value);
+            } else {
+                $value = str_replace(',', '', $value);
+            }
+
+            return (float) $value;
+        }
+
+        if ($hasComma) {
+            $parts = explode(',', $value);
+            $lastPart = end($parts);
+
+            if (strlen((string) $lastPart) === 3) {
+                $value = str_replace(',', '', $value);
+            } else {
+                $value = str_replace(',', '.', $value);
+            }
+
+            return (float) $value;
+        }
+
+        if ($hasDot) {
+            $parts = explode('.', $value);
+            $lastPart = end($parts);
+
+            if (strlen((string) $lastPart) === 3) {
+                $value = str_replace('.', '', $value);
+            }
+
+            return (float) $value;
+        }
+
+        return (float) $value;
+    }
+
+    private function getSelectedVendorItemForSummary(PurchaseRequest $purchaseRequest, PurchaseRequestItem $item): ?array
+    {
+        $options = $this->getVendorBidOptionsForSummary($purchaseRequest);
+        $itemOptions = $options[$item->id] ?? [];
+        $selectedOption = collect($itemOptions)->first(fn($option) => (bool) ($option['is_selected'] ?? false));
+
+        if (! $selectedOption) {
+            return null;
+        }
+
+        return [
+            'vendor_name' => $selectedOption['vendor_name'] ?? '-',
+            'unit_price' => (float) ($selectedOption['unit_price'] ?? 0),
+            'quantity' => (float) ($selectedOption['quantity'] ?? $item->quantity ?? 0),
+            'total_price' => (float) ($selectedOption['total_price'] ?? 0),
+        ];
+    }
+
+    private function getSelectedVendorKeyForSummary(PurchaseRequest $purchaseRequest, PurchaseRequestItem $item): string
+    {
+        $selectedVendorItem = $this->getSelectedVendorItemForSummary($purchaseRequest, $item);
+
+        return strtolower(trim((string) ($selectedVendorItem['vendor_name'] ?? '')));
+    }
+
+    private function formatRupiahForSummary($value): string
+    {
+        return 'Rp ' . number_format((float) $value, 0, ',', '.');
+    }
+
+    private function formatQtyForSummary($value): string
+    {
+        return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
+    }
+
+    private function formatPaymentMethodForSummary(?string $method): string
+    {
+        return match ($method) {
+            'cash' => 'Cash',
+            'credit' => 'Credit',
+            'transfer' => 'Transfer',
+            default => '-',
+        };
+    }
+
+    private function makePaymentSummaryPdf(PurchaseRequest $purchaseRequest, array $rows, float $grandTotal): string
+    {
+        $pageWidth = 842;
+        $pageHeight = 595;
+        $left = 30;
+        $top = 555;
+        $content = "0.2 w\n";
+
+        $content .= $this->pdfText('Payment Summary', $left, $top, 14, true);
+        $content .= $this->pdfText('PR Number: ' . ($purchaseRequest->pr_number ?? '-'), $left, $top - 22, 9);
+        $content .= $this->pdfText('Title: ' . ($purchaseRequest->title ?? '-'), $left, $top - 36, 9);
+        $content .= $this->pdfText('Requester: ' . ($purchaseRequest->requester_name ?? '-'), $left + 300, $top - 22, 9);
+        $content .= $this->pdfText('Department: ' . ($purchaseRequest->department_name ?? '-'), $left + 300, $top - 36, 9);
+        $content .= $this->pdfText('Date Needed: ' . ($purchaseRequest->date_needed ? \Carbon\Carbon::parse($purchaseRequest->date_needed)->format('d M Y') : '-'), $left + 560, $top - 22, 9);
+
+        $columns = [
+            ['key' => 'no', 'label' => 'No', 'width' => 28, 'align' => 'center'],
+            ['key' => 'item', 'label' => 'Item', 'width' => 150, 'align' => 'left'],
+            ['key' => 'qty', 'label' => 'Qty', 'width' => 38, 'align' => 'right'],
+            ['key' => 'unit', 'label' => 'Unit', 'width' => 45, 'align' => 'left'],
+            ['key' => 'vendor', 'label' => 'Vendor', 'width' => 145, 'align' => 'left'],
+            ['key' => 'price', 'label' => 'Price / Unit', 'width' => 90, 'align' => 'right'],
+            ['key' => 'total', 'label' => 'Total', 'width' => 90, 'align' => 'right'],
+            ['key' => 'payment', 'label' => 'Payment', 'width' => 70, 'align' => 'left'],
+            ['key' => 'note', 'label' => 'Note', 'width' => 126, 'align' => 'left'],
+        ];
+
+        $x = $left;
+        $y = $top - 70;
+        $headerHeight = 24;
+        $rowHeight = 34;
+
+        $content .= "0.94 0.96 0.98 rg\n";
+        $content .= $this->pdfRect($x, $y - $headerHeight, array_sum(array_column($columns, 'width')), $headerHeight, true);
+        $content .= "0 0 0 RG\n0 g\n";
+
+        $columnX = $x;
+
+        foreach ($columns as $column) {
+            $content .= $this->pdfRect($columnX, $y - $headerHeight, $column['width'], $headerHeight);
+            $content .= $this->pdfText($column['label'], $columnX + 4, $y - 15, 8, true);
+            $columnX += $column['width'];
+        }
+
+        $y -= $headerHeight;
+
+        foreach ($rows as $row) {
+            if ($y - $rowHeight < 45) {
+                break;
+            }
+
+            $columnX = $x;
+
+            foreach ($columns as $column) {
+                $width = $column['width'];
+                $value = (string) ($row[$column['key']] ?? '-');
+                $content .= $this->pdfRect($columnX, $y - $rowHeight, $width, $rowHeight);
+
+                $textX = $columnX + 4;
+
+                if ($column['align'] === 'right') {
+                    $textX = $columnX + $width - 4 - min(strlen($value) * 4.2, $width - 8);
+                } elseif ($column['align'] === 'center') {
+                    $textX = $columnX + max(4, ($width - strlen($value) * 4.2) / 2);
+                }
+
+                $wrappedLines = $this->wrapPdfLine($value, max(8, (int) floor($width / 5)));
+                $wrappedLines = array_slice($wrappedLines, 0, 2);
+                $textY = $y - 13;
+
+                foreach ($wrappedLines as $wrappedLine) {
+                    $content .= $this->pdfText($wrappedLine, $textX, $textY, 7);
+                    $textY -= 10;
+                }
+
+                $columnX += $width;
+            }
+
+            $y -= $rowHeight;
+        }
+
+        $totalWidth = array_sum(array_column($columns, 'width'));
+        $grandTotalHeight = 28;
+        $content .= "0.94 0.96 0.98 rg\n";
+        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth, $grandTotalHeight, true);
+        $content .= "0 0 0 RG\n0 g\n";
+        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth - 126, $grandTotalHeight);
+        $content .= $this->pdfRect($x + $totalWidth - 126, $y - $grandTotalHeight, 126, $grandTotalHeight);
+        $content .= $this->pdfText('Grand Total', $x + $totalWidth - 220, $y - 17, 9, true);
+        $content .= $this->pdfText($this->formatRupiahForSummary($grandTotal), $x + $totalWidth - 112, $y - 17, 9, true);
+
+        return $this->buildPdf($content, $pageWidth, $pageHeight);
+    }
+
+    private function makeGeneralPaymentSummaryPdf(array $rows, float $grandTotal): string
+    {
+        $pageWidth = 842;
+        $pageHeight = 595;
+        $left = 24;
+        $top = 555;
+        $content = "0.2 w\n";
+
+        $content .= $this->pdfText('General Payment Summary', $left, $top, 14, true);
+        $content .= $this->pdfText('Generated: ' . now()->format('d M Y H:i'), $left, $top - 22, 9);
+
+        $columns = [
+            ['key' => 'no', 'label' => 'No', 'width' => 25, 'align' => 'center'],
+            ['key' => 'pr', 'label' => 'PR Number', 'width' => 105, 'align' => 'left'],
+            ['key' => 'item', 'label' => 'Item', 'width' => 145, 'align' => 'left'],
+            ['key' => 'qty', 'label' => 'Qty', 'width' => 36, 'align' => 'right'],
+            ['key' => 'vendor', 'label' => 'Vendor', 'width' => 130, 'align' => 'left'],
+            ['key' => 'price', 'label' => 'Price / Unit', 'width' => 88, 'align' => 'right'],
+            ['key' => 'total', 'label' => 'Total', 'width' => 88, 'align' => 'right'],
+            ['key' => 'payment', 'label' => 'Payment', 'width' => 68, 'align' => 'left'],
+            ['key' => 'note', 'label' => 'Note', 'width' => 110, 'align' => 'left'],
+        ];
+
+        $x = $left;
+        $y = $top - 50;
+        $headerHeight = 24;
+        $rowHeight = 32;
+        $totalWidth = array_sum(array_column($columns, 'width'));
+
+        $content .= "0.94 0.96 0.98 rg\n";
+        $content .= $this->pdfRect($x, $y - $headerHeight, $totalWidth, $headerHeight, true);
+        $content .= "0 0 0 RG\n0 g\n";
+
+        $columnX = $x;
+
+        foreach ($columns as $column) {
+            $content .= $this->pdfRect($columnX, $y - $headerHeight, $column['width'], $headerHeight);
+            $content .= $this->pdfText($column['label'], $columnX + 4, $y - 15, 8, true);
+            $columnX += $column['width'];
+        }
+
+        $y -= $headerHeight;
+        $columnPositions = [];
+        $positionX = $x;
+
+        foreach ($columns as $column) {
+            $columnPositions[$column['key']] = $positionX;
+            $positionX += $column['width'];
+        }
+
+        $grandTotalHeight = 28;
+        $totalColumnX = $x;
+        $totalColumnWidth = 0;
+
+        foreach ($columns as $column) {
+            if ($column['key'] === 'total') {
+                $totalColumnWidth = $column['width'];
+                break;
+            }
+
+            $totalColumnX += $column['width'];
+        }
+
+        $afterTotalWidth = $totalWidth - (($totalColumnX - $x) + $totalColumnWidth);
+
+        $paymentCategories = [
+            'Cash' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Cash')->values(),
+            'Credit' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Credit')->values(),
+            'Transfer' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Transfer')->values(),
+            'No Payment Method' => collect($rows)->filter(fn($row) => ! in_array(($row['payment'] ?? '-'), ['Cash', 'Credit', 'Transfer'], true))->values(),
+        ];
+
+        $pdfPrNumber = 1;
+
+        foreach ($paymentCategories as $paymentCategoryLabel => $categoryRows) {
+            if ($categoryRows->isEmpty()) {
+                continue;
+            }
+
+            $categoryTotal = (float) $categoryRows->sum(fn($row) => (float) ($row['total_value'] ?? 0));
+            $categoryHeaderHeight = 20;
+
+            if ($y - $categoryHeaderHeight < 45) {
+                break;
+            }
+
+            $content .= "0.90 0.93 0.97 rg\n";
+            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight, true);
+            $content .= "0 0 0 RG\n0 g\n";
+            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight);
+            $content .= $this->pdfText($paymentCategoryLabel, $x + 6, $y - 13, 9, true);
+            $y -= $categoryHeaderHeight;
+
+            $groupedRows = $categoryRows
+                ->groupBy('pr')
+                ->values();
+
+            foreach ($groupedRows as $groupRows) {
+            $groupRows = $groupRows->values();
+            $groupHeight = $rowHeight * max(1, $groupRows->count());
+
+            if ($y - $groupHeight < 45) {
+                break;
+            }
+
+            $noColumn = $columns[0];
+            $prColumn = $columns[1];
+            $noX = $x;
+            $prX = $x + $noColumn['width'];
+            $groupTopY = $y;
+
+            $content .= $this->pdfRect($noX, $groupTopY - $groupHeight, $noColumn['width'], $groupHeight);
+            $content .= $this->pdfText((string) $pdfPrNumber, $noX + 9, $groupTopY - 14, 7);
+
+            $content .= $this->pdfRect($prX, $groupTopY - $groupHeight, $prColumn['width'], $groupHeight);
+            $prLines = array_slice($this->wrapPdfLine((string) ($groupRows[0]['pr'] ?? '-'), 18), 0, 3);
+            $prTextY = $groupTopY - 14;
+
+            foreach ($prLines as $prLine) {
+                $content .= $this->pdfText($prLine, $prX + 4, $prTextY, 7);
+                $prTextY -= 10;
+            }
+
+            foreach ($groupRows as $row) {
+                $columnX = $x + $noColumn['width'] + $prColumn['width'];
+
+                foreach (array_slice($columns, 2) as $column) {
+                    $width = $column['width'];
+                    $value = (string) ($row[$column['key']] ?? '-');
+                    $content .= $this->pdfRect($columnX, $y - $rowHeight, $width, $rowHeight);
+
+                    $textX = $columnX + 4;
+
+                    if ($column['align'] === 'right') {
+                        $textX = $columnX + $width - 4 - min(strlen($value) * 4.2, $width - 8);
+                    } elseif ($column['align'] === 'center') {
+                        $textX = $columnX + max(4, ($width - strlen($value) * 4.2) / 2);
+                    }
+
+                    $wrappedLines = array_slice($this->wrapPdfLine($value, max(8, (int) floor($width / 5))), 0, 2);
+                    $textY = $y - 12;
+
+                    foreach ($wrappedLines as $wrappedLine) {
+                        $content .= $this->pdfText($wrappedLine, $textX, $textY, 7);
+                        $textY -= 10;
+                    }
+
+                    $columnX += $width;
+                }
+
+                $y -= $rowHeight;
+            }
+
+            $pdfPrNumber++;
+        }
+
+            if ($y - $grandTotalHeight < 45) {
+                break;
+            }
+
+            $categoryTotalText = $this->formatRupiahForSummary($categoryTotal);
+            $content .= "0.94 0.96 0.98 rg\n";
+            $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth, $grandTotalHeight, true);
+            $content .= "0 0 0 RG\n0 g\n";
+            $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalColumnX - $x, $grandTotalHeight);
+            $content .= $this->pdfRect($totalColumnX, $y - $grandTotalHeight, $totalColumnWidth, $grandTotalHeight);
+
+            if ($afterTotalWidth > 0) {
+                $content .= $this->pdfRect($totalColumnX + $totalColumnWidth, $y - $grandTotalHeight, $afterTotalWidth, $grandTotalHeight);
+            }
+
+            $content .= $this->pdfText($paymentCategoryLabel . ' Total', $totalColumnX - 92, $y - 17, 9, true);
+            $content .= $this->pdfText($categoryTotalText, $totalColumnX + $totalColumnWidth - 4 - min(strlen($categoryTotalText) * 4.8, $totalColumnWidth - 8), $y - 17, 9, true);
+            $y -= $grandTotalHeight;
+        }
+
+        $content .= "0.94 0.96 0.98 rg\n";
+        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth, $grandTotalHeight, true);
+        $content .= "0 0 0 RG\n0 g\n";
+        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalColumnX - $x, $grandTotalHeight);
+        $content .= $this->pdfRect($totalColumnX, $y - $grandTotalHeight, $totalColumnWidth, $grandTotalHeight);
+
+        if ($afterTotalWidth > 0) {
+            $content .= $this->pdfRect($totalColumnX + $totalColumnWidth, $y - $grandTotalHeight, $afterTotalWidth, $grandTotalHeight);
+        }
+
+        $grandTotalText = $this->formatRupiahForSummary($grandTotal);
+        $content .= $this->pdfText('Grand Total', $totalColumnX - 78, $y - 17, 9, true);
+        $content .= $this->pdfText($grandTotalText, $totalColumnX + $totalColumnWidth - 4 - min(strlen($grandTotalText) * 4.8, $totalColumnWidth - 8), $y - 17, 9, true);
+
+        return $this->buildPdf($content, $pageWidth, $pageHeight);
+    }
+
+    private function pdfText(string $text, float $x, float $y, int $size = 8, bool $bold = false): string
+    {
+        $font = $bold ? 'F2' : 'F1';
+
+        return "BT\n/{$font} {$size} Tf\n1 0 0 1 {$x} {$y} Tm\n(" . $this->escapePdfText($text) . ") Tj\nET\n";
+    }
+
+    private function pdfRect(float $x, float $y, float $width, float $height, bool $fill = false): string
+    {
+        return "{$x} {$y} {$width} {$height} re " . ($fill ? "f\n" : "S\n");
+    }
+
+    private function buildPdf(string $content, int $pageWidth, int $pageHeight): string
+    {
+        $objects = [];
+
+        $objects[] = "<< /Type /Catalog /Pages 2 0 R >>";
+        $objects[] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
+        $objects[] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$pageWidth} {$pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>";
+        $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+        $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
+        $objects[] = "<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream";
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [0];
+
+        foreach ($objects as $index => $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($index + 1) . " 0 obj\n" . $object . "\nendobj\n";
+        }
+
+        $xrefOffset = strlen($pdf);
+        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
+        $pdf .= "0000000000 65535 f \n";
+
+        for ($i = 1; $i <= count($objects); $i++) {
+            $pdf .= str_pad((string) $offsets[$i], 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+        }
+
+        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
+        $pdf .= "startxref\n" . $xrefOffset . "\n%%EOF";
+
+        return $pdf;
+    }
+
+    private function wrapPdfLine(string $line, int $length): array
+    {
+        $line = trim(preg_replace('/\s+/', ' ', $line) ?? '');
+
+        if ($line === '') {
+            return [''];
+        }
+
+        return explode("\n", wordwrap($line, $length, "\n", true));
+    }
+
+    private function escapePdfText(string $text): string
+    {
+        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $text);
     }
 
     private function generatePrNumber(): string

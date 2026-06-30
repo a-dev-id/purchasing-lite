@@ -35,6 +35,28 @@ $showCostControlReturnRemark =
 in_array((string) $purchaseRequest->status, $costControlReturnStatuses, true)
 && filled($costControlReturnRemark);
 
+$latestOwnerReturnLog = null;
+
+if (method_exists($purchaseRequest, 'logs')) {
+$latestOwnerReturnLog = $purchaseRequest->logs()
+->whereIn('action', [
+'owner_returned_to_purchasing',
+'owner_partial_returned_to_purchasing',
+])
+->latest('acted_at')
+->latest('created_at')
+->first();
+}
+
+$ownerReturnRemark =
+$latestOwnerReturnLog->remarks
+?? $latestOwnerReturnLog->remark
+?? $latestOwnerReturnLog->notes
+?? $purchaseRequest->owner_return_remarks
+?? $purchaseRequest->owner_split_remarks
+?? $purchaseRequest->owner_remarks
+?? null;
+
 $priority = strtolower((string) ($purchaseRequest->priority ?? 'regular'));
 
 $priorityLabel = match ($priority) {
@@ -62,28 +84,28 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
 };
 @endphp
 
-<section class="mb-6 border border-slate-300 bg-white p-6 shadow-sm">
+<section class="mb-4 border border-slate-300 bg-white p-4 shadow-sm">
     <div class="flex items-center justify-between gap-4">
         <div>
-            <h2 class="text-xl font-bold text-slate-950">
+            <h2 class="text-lg font-bold text-slate-950">
                 Vendor Comparison
             </h2>
 
-            <div class="mt-1 flex flex-wrap items-center gap-3">
-                <p class="text-base text-slate-600">
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+                <p class="text-sm text-slate-600">
                     {{ $purchaseRequest->pr_number }} - {{ $purchaseRequest->title }}
                 </p>
             </div>
         </div>
 
-        <a href="/purchasing-lite/dashboard" class="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 transition hover:bg-slate-50">
+        <a href="/purchasing-lite/dashboard" class="inline-flex h-8 items-center justify-center border border-slate-300 bg-white px-4 text-xs font-bold text-slate-800 transition hover:bg-slate-50">
             Back
         </a>
     </div>
 </section>
 
 @if ($errors->any())
-<section class="mb-6 border border-red-300 bg-red-50 px-5 py-4 text-sm font-medium text-red-800">
+<section class="mb-4 border border-red-300 bg-red-50 px-4 py-3 text-xs font-medium text-red-800">
     <p class="mb-2 font-bold">Please check the form:</p>
 
     <ul class="list-inside list-disc space-y-1">
@@ -94,109 +116,121 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
 </section>
 @endif
 
-<section class="mb-6 border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+<section class="mb-4 border border-slate-300 bg-white shadow-sm">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             PR Information
         </h3>
     </div>
 
-    <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-6">
+    <div class="grid grid-cols-1 gap-3 p-4 md:grid-cols-6">
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Requester
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->requester_name ?? '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Department
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->department_name ?? '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Date Needed
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->date_needed ? $purchaseRequest->date_needed->format('d M Y') : '-' }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 PR Priority
             </p>
 
-            <div class="mt-2">
-                <span class="inline-flex min-w-[105px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $priorityBadgeClass }}">
+            <div class="mt-1">
+                <span class="inline-flex min-w-[88px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $priorityBadgeClass }}">
                     {{ $priorityLabel }}
                 </span>
             </div>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Current Step
             </p>
 
-            <p class="mt-2 text-base font-bold capitalize text-slate-950">
+            <p class="mt-1 text-sm font-bold capitalize text-slate-950">
                 {{ str_replace('_', ' ', $purchaseRequest->current_step) }}
             </p>
         </div>
 
         <div>
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Created Date
             </p>
 
-            <p class="mt-2 text-base font-bold text-slate-950">
+            <p class="mt-1 text-sm font-bold text-slate-950">
                 {{ $purchaseRequest->created_at ? $purchaseRequest->created_at->format('d M Y') : '-' }}
             </p>
         </div>
 
         <div class="md:col-span-6">
-            <p class="text-sm font-bold uppercase tracking-wide text-slate-500">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Requester Remarks
             </p>
 
-            <div class="mt-2 min-h-14 border border-slate-300 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-800">
+            <div class="mt-1 min-h-10 border border-slate-300 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-800">
                 {!! nl2br(e($purchaseRequest->requester_remarks ?: '-')) !!}
             </div>
         </div>
+
+        @if (filled($ownerReturnRemark))
+        <div class="md:col-span-6">
+            <p class="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Note From OR
+            </p>
+
+            <div class="mt-1 min-h-10 border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-bold leading-5 text-orange-950">
+                {!! nl2br(e($ownerReturnRemark)) !!}
+            </div>
+        </div>
+        @endif
     </div>
 </section>
 
 @if ($showCostControlReturnRemark)
-<section class="mb-6 border border-orange-300 bg-white shadow-sm">
-    <div class="border-b border-orange-300 bg-orange-50 px-5 py-4">
-        <h3 class="text-lg font-bold text-orange-900">
+<section class="mb-4 border border-orange-300 bg-white shadow-sm">
+    <div class="border-b border-orange-300 bg-orange-50 px-4 py-3">
+        <h3 class="text-base font-bold text-orange-900">
             Cost Control Return Remark
         </h3>
     </div>
 
-    <div class="p-5">
-        <p class="text-sm font-bold uppercase tracking-wide text-orange-700">
+    <div class="p-4">
+        <p class="text-xs font-bold uppercase tracking-wide text-orange-700">
             Cost Control returned this PR to Purchasing
         </p>
 
-        <div class="mt-3 border border-orange-300 bg-orange-50 p-4">
-            <p class="whitespace-pre-line text-base font-bold text-orange-950">
+        <div class="mt-2 border border-orange-300 bg-orange-50 p-3">
+            <p class="whitespace-pre-line text-sm font-bold text-orange-950">
                 {{ $costControlReturnRemark }}
             </p>
         </div>
 
         @if ($latestCostControlReturnLog)
-        <p class="mt-3 text-sm text-slate-600">
+        <p class="mt-2 text-xs text-slate-600">
             Returned by
             <span class="font-bold text-slate-900">
                 {{ $latestCostControlReturnLog->user->name ?? 'Cost Control' }}
@@ -215,12 +249,12 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
 @endif
 
 <section class="border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             Vendor Bids
         </h3>
 
-        <p class="mt-1 text-sm text-slate-600">
+        <p class="mt-1 text-xs text-slate-600">
             Search the vendor name. If the vendor does not exist, it will be created when saving.
             Bid 2 and Bid 3 are optional. Cost Control will validate the vendor comparison later.
         </p>
@@ -230,92 +264,92 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
         @csrf
 
         <div class="overflow-x-auto">
-            <table class="border-collapse text-sm" style="width: 2634px; min-width: 2634px; table-layout: fixed;">
+            <table class="border-collapse text-xs" style="width: 2280px; min-width: 2280px; table-layout: fixed;">
                 <colgroup>
-                    <col style="width: 56px;">
-                    <col style="width: 250px;">
-                    <col style="width: 100px;">
-                    <col style="width: 280px;">
+                    <col style="width: 48px;">
+                    <col style="width: 220px;">
+                    <col style="width: 88px;">
+                    <col style="width: 240px;">
+                    <col style="width: 64px;">
+                    <col style="width: 66px;">
                     <col style="width: 70px;">
-                    <col style="width: 72px;">
-                    <col style="width: 76px;">
+                    <col style="width: 150px;">
                     <col style="width: 170px;">
-                    <col style="width: 200px;">
-                    <col style="width: 320px;">
-                    <col style="width: 200px;">
-                    <col style="width: 320px;">
-                    <col style="width: 200px;">
-                    <col style="width: 320px;">
+                    <col style="width: 260px;">
+                    <col style="width: 170px;">
+                    <col style="width: 260px;">
+                    <col style="width: 170px;">
+                    <col style="width: 260px;">
                 </colgroup>
                 <thead>
                     <tr class="bg-slate-100">
-                        <th rowspan="2" class="w-16 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="w-12 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             No
                         </th>
 
-                        <th rowspan="2" class="min-w-[250px] border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Item Name
                         </th>
 
-                        <th rowspan="2" class="w-40 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Files
                         </th>
 
-                        <th rowspan="2" class="min-w-[250px] border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Specification
                         </th>
 
-                        <th rowspan="2" class="w-24 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Qty
                         </th>
 
-                        <th rowspan="2" class="w-24 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Unit
                         </th>
 
-                        <th rowspan="2" class="w-24 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Stock
                         </th>
 
-                        <th rowspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th rowspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Last Purchase
                         </th>
 
-                        <th colspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th colspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Bid 1
                         </th>
 
-                        <th colspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th colspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Bid 2
                         </th>
 
-                        <th colspan="2" class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                        <th colspan="2" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                             Bid 3
                         </th>
                     </tr>
 
                     <tr class="bg-slate-100">
-                        <th class="min-w-[220px] border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Vendor
                         </th>
 
-                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
 
-                        <th class="min-w-[220px] border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Vendor
                         </th>
 
-                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
 
-                        <th class="min-w-[220px] border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Vendor
                         </th>
 
-                        <th class="border border-slate-300 px-3 py-2 text-center font-bold text-slate-800">
+                        <th class="border border-slate-300 px-2 py-1.5 text-center font-bold text-slate-800">
                             Price / Unit
                         </th>
                     </tr>
@@ -342,23 +376,23 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                         @endphp
 
                         <tr>
-                            <td class="border border-slate-300 px-3 py-3 text-center font-bold text-slate-700">
+                            <td class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-700">
                                 {{ $loop->iteration }}
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-3 font-bold text-slate-900">
+                            <td class="border border-slate-300 px-2 py-2 font-bold text-slate-900">
                                 {{ $item->item_name }}
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-2 align-top">
+                            <td class="border border-slate-300 px-2 py-1.5 align-top">
                                 @if (! empty($itemPhotos))
                                 <div class="flex flex-wrap gap-1">
                                     @foreach ($itemPhotos as $photo)
                                     <a href="{{ asset('storage/' . ltrim($photo, '/')) }}" target="_blank" class="block">
                                         @if ($isAttachmentImage($photo))
-                                        <img src="{{ asset('storage/' . ltrim($photo, '/')) }}" alt="" class="h-12 w-12 border border-slate-300 object-cover">
+                                        <img src="{{ asset('storage/' . ltrim($photo, '/')) }}" alt="" class="h-9 w-9 border border-slate-300 object-cover">
                                         @else
-                                        <span class="flex h-12 w-24 items-center border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-700">
+                                        <span class="flex h-9 w-20 items-center border border-slate-300 bg-slate-50 px-2 text-[11px] font-bold text-slate-700">
                                             {{ basename($photo) }}
                                         </span>
                                         @endif
@@ -370,24 +404,24 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                                 @endif
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-3 text-slate-800">
+                            <td class="border border-slate-300 px-2 py-2 text-slate-800">
                                 {{ $item->specification ?: '-' }}
                             </td>
 
                             <td class="border border-slate-300 p-0 align-top">
-                                <input type="text" name="items[{{ $item->id }}][quantity]" value="{{ $quantityValue }}" inputmode="decimal" autocomplete="off" class="h-11 w-full border-0 bg-white px-3 text-right text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                <input type="text" name="items[{{ $item->id }}][quantity]" value="{{ $quantityValue }}" inputmode="decimal" autocomplete="off" class="h-8 w-full border-0 bg-white px-2 text-right text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
                             </td>
 
                             <td class="border border-slate-300 p-0 align-top">
-                                <input type="text" name="items[{{ $item->id }}][unit]" value="{{ $unitValue }}" autocomplete="off" spellcheck="false" class="h-11 w-full border-0 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                <input type="text" name="items[{{ $item->id }}][unit]" value="{{ $unitValue }}" autocomplete="off" spellcheck="false" class="h-8 w-full border-0 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
                             </td>
 
-                            <td class="border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
+                            <td class="border border-slate-300 px-2 py-2 text-right font-bold text-slate-950">
                                 {{ $item->stock !== null ? rtrim(rtrim(number_format((float) $item->stock, 2, '.', ''), '0'), '.') : '-' }}
                             </td>
 
                             <td class="border border-slate-300 p-0 align-top">
-                                <input type="date" name="items[{{ $item->id }}][last_purchase_date]" value="{{ $lastPurchaseDateValue }}" class="h-11 w-full border-0 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                <input type="date" name="items[{{ $item->id }}][last_purchase_date]" value="{{ $lastPurchaseDateValue }}" class="h-8 w-full border-0 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
                             </td>
 
                             @for ($bidNumber = 1; $bidNumber <= 3; $bidNumber++) @php $savedVendorName=$savedBids[$item->id][$bidNumber]['vendor_name'] ?? '';
@@ -402,19 +436,19 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
                                 @endphp
 
                                 <td class="relative align-top border border-slate-300 p-0">
-                                    <input type="text" name="bids[{{ $item->id }}][{{ $bidNumber }}][vendor_name]" value="{{ $vendorNameValue }}" placeholder="Vendor {{ $bidNumber }}" autocomplete="off" spellcheck="false" class="js-vendor-search h-11 w-full border-0 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                    <input type="text" name="bids[{{ $item->id }}][{{ $bidNumber }}][vendor_name]" value="{{ $vendorNameValue }}" placeholder="Vendor {{ $bidNumber }}" autocomplete="off" spellcheck="false" class="js-vendor-search h-8 w-full border-0 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
 
-                                    <div class="js-vendor-results absolute left-0 top-full z-[9999] hidden w-[360px] border border-slate-300 bg-white shadow-lg"></div>
+                                    <div class="js-vendor-results absolute left-0 top-full z-[9999] hidden w-[300px] border border-slate-300 bg-white shadow-lg"></div>
                                 </td>
 
                                 <td class="align-top border border-slate-300 p-0">
-                                    <input type="text" name="bids[{{ $item->id }}][{{ $bidNumber }}][unit_price]" value="{{ $unitPriceValue }}" inputmode="numeric" autocomplete="off" placeholder="Rp 0" class="js-rupiah-input h-11 w-full border-0 bg-white px-3 text-right text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                                    <input type="text" name="bids[{{ $item->id }}][{{ $bidNumber }}][unit_price]" value="{{ $unitPriceValue }}" inputmode="numeric" autocomplete="off" placeholder="Rp 0" class="js-rupiah-input h-8 w-full border-0 bg-white px-2 text-right text-xs font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
                                 </td>
                                 @endfor
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="14" class="border border-slate-300 px-4 py-6 text-center text-base text-slate-500">
+                            <td colspan="14" class="border border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
                                 No item data.
                             </td>
                         </tr>
@@ -423,28 +457,28 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
             </table>
         </div>
 
-        <div class="flex justify-end border-t border-slate-300 bg-white p-5">
-            <button type="submit" class="inline-flex h-11 w-full items-center justify-center bg-slate-950 px-8 text-sm font-bold text-white transition hover:bg-slate-800 md:w-auto">
+        <div class="flex justify-end border-t border-slate-300 bg-white p-4">
+            <button type="submit" class="inline-flex h-9 w-full items-center justify-center bg-slate-950 px-6 text-xs font-bold text-white transition hover:bg-slate-800 md:w-auto">
                 Save Bids
             </button>
         </div>
     </form>
 </section>
 
-<section class="mt-6 border border-slate-300 bg-white p-5 shadow-sm">
-    <div class="flex flex-col gap-3 md:flex-row md:justify-end">
-        <button type="button" data-open-modal="send-back-requester-modal" class="inline-flex h-11 w-full items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50 md:w-auto">
+<section class="mt-4 border border-slate-300 bg-white p-4 shadow-sm">
+    <div class="flex flex-col gap-2 md:flex-row md:justify-end">
+        <button type="button" data-open-modal="send-back-requester-modal" class="inline-flex h-9 w-full items-center justify-center border border-blue-700 bg-white px-5 text-xs font-bold text-blue-800 transition hover:bg-blue-50 md:w-auto">
             Send Back to Requester
         </button>
 
-        <button type="button" data-open-modal="reject-requester-modal" class="inline-flex h-11 w-full items-center justify-center border border-red-700 bg-white px-6 text-sm font-bold text-red-800 transition hover:bg-red-50 md:w-auto">
+        <button type="button" data-open-modal="reject-requester-modal" class="inline-flex h-9 w-full items-center justify-center border border-red-700 bg-white px-5 text-xs font-bold text-red-800 transition hover:bg-red-50 md:w-auto">
             Reject PR
         </button>
 
         <form method="POST" action="{{ route('purchasing-lite.purchase-requests.vendors.send-to-cost-control', $purchaseRequest) }}" onsubmit="return confirm('Send this PR to Cost Control? Cost Control will validate if the vendor comparison is enough.');">
             @csrf
 
-            <button type="submit" class="inline-flex h-11 w-full items-center justify-center bg-green-700 px-6 text-sm font-bold text-white transition hover:bg-green-800 md:w-auto">
+            <button type="submit" class="inline-flex h-9 w-full items-center justify-center bg-green-700 px-5 text-xs font-bold text-white transition hover:bg-green-800 md:w-auto">
                 Send to Cost Control
             </button>
         </form>

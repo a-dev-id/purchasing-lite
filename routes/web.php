@@ -80,7 +80,10 @@ Route::prefix('purchasing-lite')->name('purchasing-lite.')->group(function () {
         if ($roleStep === 'requester' || str_contains($roleStep, 'requester')) {
             $baseQuery->where('requested_by', $user->id);
         } elseif ($roleStep === 'purchasing') {
-            $baseQuery->where('current_step', 'purchasing');
+            $baseQuery->where(function ($query) {
+                $query->where('current_step', 'purchasing')
+                    ->orWhere('status', 'on_progress');
+            });
         } elseif ($roleStep === 'cost_control') {
             $baseQuery->where('current_step', 'cost_control');
         } elseif ($roleStep === 'gm') {
@@ -157,6 +160,9 @@ Route::prefix('purchasing-lite')->name('purchasing-lite.')->group(function () {
     Route::put('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'update'])
         ->name('purchase-requests.update');
 
+    Route::delete('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])
+        ->name('purchase-requests.destroy');
+
     /*
     |--------------------------------------------------------------------------
     | Purchasing Follow Up
@@ -164,6 +170,21 @@ Route::prefix('purchasing-lite')->name('purchasing-lite.')->group(function () {
     */
     Route::post('/purchase-requests/{purchaseRequest}/purchasing/on-shipping', [PurchaseRequestController::class, 'markOnShipping'])
         ->name('purchase-requests.purchasing.on-shipping');
+
+    Route::get('/purchasing/payment-summary', [PurchaseRequestController::class, 'generalPaymentSummary'])
+        ->name('purchasing.payment-summary');
+
+    Route::post('/purchasing/payment-summary', [PurchaseRequestController::class, 'saveGeneralPaymentSummary'])
+        ->name('purchasing.payment-summary.save');
+
+    Route::get('/purchasing/payment-summary.pdf', [PurchaseRequestController::class, 'downloadGeneralPaymentSummaryPdf'])
+        ->name('purchasing.payment-summary.pdf');
+
+    Route::post('/purchase-requests/{purchaseRequest}/purchasing/payment-summary', [PurchaseRequestController::class, 'savePaymentSummary'])
+        ->name('purchase-requests.purchasing.payment-summary.save');
+
+    Route::get('/purchase-requests/{purchaseRequest}/purchasing/payment-summary.pdf', [PurchaseRequestController::class, 'downloadPaymentSummaryPdf'])
+        ->name('purchase-requests.purchasing.payment-summary.pdf');
 
     Route::post('/purchase-requests/{purchaseRequest}/purchasing/received', [PurchaseRequestController::class, 'markReceived'])
         ->name('purchase-requests.purchasing.received');
@@ -247,6 +268,9 @@ Route::prefix('purchasing-lite')->name('purchasing-lite.')->group(function () {
     */
     Route::post('/purchase-requests/owner/bulk-approve', [PurchaseRequestOwnerController::class, 'bulkApprove'])
         ->name('purchase-requests.owner.bulk-approve');
+
+    Route::post('/purchase-requests/owner/return-to-purchasing', [PurchaseRequestOwnerController::class, 'bulkReturnToPurchasing'])
+        ->name('purchase-requests.owner.return-to-purchasing');
 
     Route::post('/purchase-requests/owner/save-quantities', [PurchaseRequestOwnerController::class, 'saveQuantities'])
         ->name('purchase-requests.owner.save-quantities');

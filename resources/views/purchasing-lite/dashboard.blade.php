@@ -113,6 +113,12 @@ default => 'border-slate-400 bg-white text-slate-800',
         </div>
 
         <div class="flex items-center gap-3">
+            @if (in_array($normalizedRole, ['admin', 'purchasing', 'financial controller', 'financialcontroller', 'fc', 'accounting'], true))
+            <a href="{{ route('purchasing-lite.purchasing.payment-summary') }}" class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
+                General Payment Summary
+            </a>
+            @endif
+
             <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-6 text-sm font-bold text-slate-950 transition hover:bg-slate-100">
                 PR List
             </a>
@@ -127,69 +133,69 @@ default => 'border-slate-400 bg-white text-slate-800',
 </section>
 
 <section class="border border-slate-300 bg-white shadow-sm">
-    <div class="border-b border-slate-300 px-5 py-4">
-        <h3 class="text-lg font-bold text-slate-950">
+    <div class="border-b border-slate-300 px-4 py-3">
+        <h3 class="text-base font-bold text-slate-950">
             Purchase Request List
         </h3>
 
-        <p class="mt-1 text-sm text-slate-600">
+        <p class="mt-1 text-xs text-slate-600">
             This table shows PR data based on your account.
         </p>
     </div>
 
     <div class="overflow-x-auto">
-        <table class="border-collapse text-sm" style="min-width: 1620px;">
+        <table class="border-collapse text-xs" style="min-width: 1360px;">
             <thead>
                 <tr class="bg-slate-100">
-                    <th class="w-16 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-12 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         No
                     </th>
 
-                    <th class="w-44 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-36 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         PR Number
                     </th>
 
-                    <th class="w-44 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-32 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Requester
                     </th>
 
-                    <th class="min-w-[260px] border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="min-w-[220px] border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Title
                     </th>
 
-                    <th class="w-48 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-40 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Department
                     </th>
 
-                    <th class="w-36 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-28 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Date Needed
                     </th>
 
-                    <th class="w-36 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-28 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Priority
                     </th>
 
-                    <th class="w-36 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-20 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Items
                     </th>
 
-                    <th class="w-48 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-40 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Status
                     </th>
 
-                    <th class="w-44 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-36 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Current Step
                     </th>
 
-                    <th class="w-40 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-32 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Received Date
                     </th>
 
-                    <th class="w-40 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-32 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Hand Over Date
                     </th>
 
-                    <th class="w-36 border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <th class="w-28 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Action
                     </th>
                 </tr>
@@ -203,6 +209,10 @@ default => 'border-slate-400 bg-white text-slate-800',
                 $priority = strtolower((string) ($purchaseRequest->priority ?? 'regular'));
 
                 $isPurchasingUser = in_array($normalizedRole, ['purchasing', 'admin'], true);
+
+                $needsPurchasingSummary =
+                $isPurchasingUser
+                && $status === 'on_progress';
 
                 $needsPurchasingFollowUp =
                 $currentStep === 'purchasing'
@@ -223,71 +233,75 @@ default => 'border-slate-400 bg-white text-slate-800',
                 @endphp
 
                 <tr class="{{ $isCompletedPr ? 'bg-emerald-50/40' : 'hover:bg-slate-50' }}">
-                    <td class="border border-slate-300 px-4 py-3 text-center font-bold text-slate-700">
+                    <td class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-700">
                         {{ $loop->iteration }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 font-bold text-slate-900">
+                    <td class="border border-slate-300 px-2 py-2 font-bold text-slate-900">
                         {{ $purchaseRequest->pr_number }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-slate-800">
                         {{ $purchaseRequest->requester_name ?? '-' }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-slate-800">
                         {{ $purchaseRequest->title }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-slate-800">
                         {{ $purchaseRequest->department_name ?? '-' }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-center text-slate-800">
                         {{ $formatDate($purchaseRequest->date_needed ?? null) }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center">
-                        <span class="inline-flex min-w-[105px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
+                    <td class="border border-slate-300 px-2 py-2 text-center">
+                        <span class="inline-flex min-w-[82px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
                             {{ $formatPriority($priority) }}
                         </span>
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-center text-slate-800">
                         {{ $purchaseRequest->items_count ?? 0 }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center">
-                        <span class="inline-flex min-w-[150px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $statusBadgeClass($purchaseRequest->status) }}">
+                    <td class="border border-slate-300 px-2 py-2 text-center">
+                        <span class="inline-flex min-w-[125px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $statusBadgeClass($purchaseRequest->status) }}">
                             {{ $formatStatus($purchaseRequest->status) }}
                         </span>
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center">
-                        <span class="inline-flex min-w-[130px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $stepBadgeClass($purchaseRequest->current_step) }}">
+                    <td class="border border-slate-300 px-2 py-2 text-center">
+                        <span class="inline-flex min-w-[110px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $stepBadgeClass($purchaseRequest->current_step) }}">
                             {{ $formatStatus($purchaseRequest->current_step) }}
                         </span>
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         {{ $formatDate($purchaseRequest->received_date ?? $purchaseRequest->received_at ?? null) }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center font-bold text-slate-800">
+                    <td class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         {{ $formatDate($purchaseRequest->handover_date ?? $purchaseRequest->handed_over_at ?? null) }}
                     </td>
 
-                    <td class="border border-slate-300 px-4 py-3 text-center">
-                        @if ($isPurchasingUser && $needsPurchasingFollowUp)
-                        <a href="{{ route('purchasing-lite.purchase-requests.show', $purchaseRequest) }}" class="inline-flex h-9 items-center justify-center bg-green-700 px-4 text-xs font-bold text-white transition hover:bg-green-800">
+                    <td class="border border-slate-300 px-2 py-2 text-center">
+                        @if ($needsPurchasingSummary)
+                        <a href="{{ route('purchasing-lite.purchasing.payment-summary') }}" class="inline-flex h-8 items-center justify-center border border-blue-700 bg-white px-3 text-xs font-bold text-blue-800 transition hover:bg-blue-50">
+                            Summary
+                        </a>
+                        @elseif ($isPurchasingUser && $needsPurchasingFollowUp)
+                        <a href="{{ route('purchasing-lite.purchase-requests.show', $purchaseRequest) }}" class="inline-flex h-8 items-center justify-center bg-green-700 px-3 text-xs font-bold text-white transition hover:bg-green-800">
                             Follow Up
                         </a>
                         @elseif ($isPurchasingUser && ! $isCompletedPr)
-                        <a href="{{ route('purchasing-lite.purchase-requests.vendors', $purchaseRequest) }}" class="inline-flex h-9 items-center justify-center border border-slate-950 bg-white px-4 text-xs font-bold text-slate-950 transition hover:bg-slate-100">
+                        <a href="{{ route('purchasing-lite.purchase-requests.vendors', $purchaseRequest) }}" class="inline-flex h-8 items-center justify-center border border-slate-950 bg-white px-3 text-xs font-bold text-slate-950 transition hover:bg-slate-100">
                             Vendors
                         </a>
                         @else
-                        <a href="{{ route('purchasing-lite.purchase-requests.show', $purchaseRequest) }}" class="inline-flex h-9 items-center justify-center border border-slate-950 bg-white px-4 text-xs font-bold text-slate-950 transition hover:bg-slate-100">
+                        <a href="{{ route('purchasing-lite.purchase-requests.show', $purchaseRequest) }}" class="inline-flex h-8 items-center justify-center border border-slate-950 bg-white px-3 text-xs font-bold text-slate-950 transition hover:bg-slate-100">
                             View
                         </a>
                         @endif
@@ -295,7 +309,7 @@ default => 'border-slate-400 bg-white text-slate-800',
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="13" class="border border-slate-300 px-4 py-6 text-center text-base text-slate-500">
+                    <td colspan="13" class="border border-slate-300 px-2 py-4 text-center text-sm text-slate-500">
                         No purchase request data yet.
                     </td>
                 </tr>

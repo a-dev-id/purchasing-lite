@@ -26,6 +26,7 @@ $hiddenStatuses = [
 ];
 
 $selectedDepartment = trim((string) request('department', ''));
+$selectedPrNumber = trim((string) ($selectedPrNumber ?? request('pr_number', '')));
 
 $statusOptions = collect([
 'submitted_to_purchasing',
@@ -273,19 +274,19 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
     @endphp
 
     @if (session('success'))
-    <section class="mb-6 border border-green-300 bg-green-50 px-5 py-4 text-sm font-bold text-green-800">
+    <section class="mb-4 border border-green-300 bg-green-50 px-4 py-3 text-xs font-bold text-green-800">
         {{ session('success') }}
     </section>
     @endif
 
     @if (session('error'))
-    <section class="mb-6 border border-red-300 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
+    <section class="mb-4 border border-red-300 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
         {{ session('error') }}
     </section>
     @endif
 
     @if ($errors->any())
-    <section class="mb-6 border border-red-300 bg-red-50 px-5 py-4 text-sm font-bold text-red-800">
+    <section class="mb-4 border border-red-300 bg-red-50 px-4 py-3 text-xs font-bold text-red-800">
         <p class="mb-2">Please check:</p>
 
         <ul class="list-inside list-disc space-y-1">
@@ -296,50 +297,51 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
     </section>
     @endif
 
-    <section class="mb-6 border border-slate-300 bg-white p-6 shadow-sm">
+    <section class="mb-4 border border-slate-300 bg-white p-4 shadow-sm">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-                <h2 class="text-xl font-bold text-slate-950">
+                <h2 class="text-lg font-bold text-slate-950">
                     All PR List
                 </h2>
 
-                <p class="mt-1 text-base text-slate-600">
+                <p class="mt-1 text-sm text-slate-600">
                     View all purchase requests for PR discussion.
                 </p>
             </div>
 
-            <a href="{{ route('purchasing-lite.dashboard') }}" class="inline-flex h-10 items-center justify-center border border-slate-300 bg-white px-6 text-sm font-bold text-slate-800 hover:bg-slate-50">
+            <a href="{{ route('purchasing-lite.dashboard') }}" class="inline-flex h-9 items-center justify-center border border-slate-300 bg-white px-4 text-xs font-bold text-slate-800 hover:bg-slate-50">
                 Back
             </a>
         </div>
     </section>
 
-    <section class="mb-6 border border-slate-300 bg-white shadow-sm">
-        <button type="button" id="toggle-filter-button" class="flex w-full items-center justify-between border-b border-slate-300 px-5 py-4 text-left">
+    <section class="mb-4 border border-slate-300 bg-white shadow-sm">
+        <button type="button" id="toggle-filter-button" class="flex w-full items-center justify-between border-b border-slate-300 px-4 py-3 text-left">
             <span>
-                <span class="block text-lg font-bold text-slate-950">
+                <span class="block text-base font-bold text-slate-950">
                     Filter
                 </span>
 
-                <span class="mt-1 block text-sm text-slate-600">
+                <span class="mt-1 block text-xs text-slate-600">
                     {{ $monthNames[(int) $selectedMonth] ?? '-' }} {{ $selectedYear }}
                     {{ filled($selectedStatus) ? ' - ' . $formatStatus($selectedStatus) : ' - All Status' }}
                     {{ filled($selectedDepartment) ? ' - ' . $selectedDepartment : ' - All Department' }}
+                    {{ filled($selectedPrNumber) ? ' - PR: ' . $selectedPrNumber : '' }}
                 </span>
             </span>
 
-            <span id="toggle-filter-label" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-5 text-sm font-bold text-slate-950 hover:bg-slate-100">
+            <span id="toggle-filter-label" class="inline-flex h-9 items-center justify-center border border-slate-950 bg-white px-4 text-xs font-bold text-slate-950 hover:bg-slate-100">
                 Show Filter
             </span>
         </button>
 
-        <form id="filter-form" method="GET" action="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="hidden grid-cols-1 gap-4 p-5 md:grid-cols-5">
+        <form id="filter-form" method="GET" action="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="hidden grid-cols-1 gap-3 p-4 md:grid-cols-6">
             <div>
-                <label class="block text-sm font-bold uppercase tracking-wide text-slate-600">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
                     Month
                 </label>
 
-                <select name="month" class="mt-2 h-11 w-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900">
+                <select name="month" class="mt-1 h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900">
                     @foreach ($monthNames as $monthNumber => $monthName)
                     <option value="{{ $monthNumber }}" @selected((int) $selectedMonth===(int) $monthNumber)>
                         {{ $monthName }}
@@ -349,11 +351,11 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
             </div>
 
             <div>
-                <label class="block text-sm font-bold uppercase tracking-wide text-slate-600">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
                     Year
                 </label>
 
-                <select name="year" class="mt-2 h-11 w-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900">
+                <select name="year" class="mt-1 h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900">
                     @for ($year = now()->year + 1; $year >= 2020; $year--)
                     <option value="{{ $year }}" @selected((int) $selectedYear===(int) $year)>
                         {{ $year }}
@@ -363,11 +365,11 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
             </div>
 
             <div>
-                <label class="block text-sm font-bold uppercase tracking-wide text-slate-600">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
                     PR Status
                 </label>
 
-                <select name="status" class="mt-2 h-11 w-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900">
+                <select name="status" class="mt-1 h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900">
                     <option value="">All Status</option>
 
                     @foreach ($statusOptions as $status)
@@ -379,11 +381,11 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
             </div>
 
             <div>
-                <label class="block text-sm font-bold uppercase tracking-wide text-slate-600">
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
                     Department
                 </label>
 
-                <select name="department" class="mt-2 h-11 w-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900">
+                <select name="department" class="mt-1 h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900">
                     <option value="">All Department</option>
 
                     @foreach ($departmentOptions as $department)
@@ -394,12 +396,20 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                 </select>
             </div>
 
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wide text-slate-600">
+                    PR Number
+                </label>
+
+                <input type="search" name="pr_number" value="{{ $selectedPrNumber }}" class="mt-1 h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900" placeholder="Search PR number">
+            </div>
+
             <div class="flex items-end gap-2">
-                <button type="submit" class="inline-flex h-11 w-full items-center justify-center bg-slate-950 px-5 text-sm font-bold text-white hover:bg-slate-800">
+                <button type="submit" class="inline-flex h-9 w-full items-center justify-center bg-slate-950 px-4 text-xs font-bold text-white hover:bg-slate-800">
                     Apply
                 </button>
 
-                <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-11 items-center justify-center border border-slate-300 bg-white px-5 text-sm font-bold text-slate-800 hover:bg-slate-50">
+                <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-9 items-center justify-center border border-slate-300 bg-white px-4 text-xs font-bold text-slate-800 hover:bg-slate-50">
                     Reset
                 </a>
             </div>
@@ -407,36 +417,36 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
     </section>
 
     <section class="border border-slate-300 bg-white shadow-sm">
-        <div class="border-b border-slate-300 px-5 py-4">
-            <h3 class="text-lg font-bold text-slate-950">
+        <div class="border-b border-slate-300 px-4 py-3">
+            <h3 class="text-base font-bold text-slate-950">
                 Purchase Request List
             </h3>
 
-            <p class="mt-1 text-sm text-slate-600">
+            <p class="mt-1 text-xs text-slate-600">
                 Showing PR for {{ $monthNames[(int) $selectedMonth] ?? '-' }} {{ $selectedYear }}.
             </p>
         </div>
 
-        <div class="overflow-auto" style="max-height: calc(100vh - 260px);">
-            <table class="border-collapse text-sm" style="min-width: 2600px;">
+        <div class="overflow-auto" style="max-height: calc(100vh - 220px);">
+            <table class="border-collapse text-xs" style="min-width: 2140px;">
                 <thead>
                     <tr class="bg-slate-100">
-                        <th class="sticky top-0 z-10 w-16 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">No</th>
-                        <th class="sticky top-0 z-10 w-52 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">PR Number</th>
-                        <th class="sticky top-0 z-10 w-44 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Requester</th>
-                        <th class="sticky top-0 z-10 w-56 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Department</th>
-                        <th class="sticky top-0 z-10 w-36 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Date Needed</th>
-                        <th class="sticky top-0 z-10 w-40 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">PR Priority</th>
-                        <th class="sticky top-0 z-10 w-72 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">PR Title</th>
-                        <th class="sticky top-0 z-10 w-80 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Requester Remarks</th>
-                        <th class="sticky top-0 z-10 w-[440px] align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Items</th>
-                        <th class="sticky top-0 z-10 w-48 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Grand Total</th>
-                        <th class="sticky top-0 z-10 w-52 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Status</th>
-                        <th class="sticky top-0 z-10 w-48 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">Current Step</th>
-                        <th class="sticky top-0 z-10 w-80 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">FC Remarks</th>
+                        <th class="sticky top-0 z-10 w-12 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">No</th>
+                        <th class="sticky top-0 z-10 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">PR Number</th>
+                        <th class="sticky top-0 z-10 w-36 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Requester</th>
+                        <th class="sticky top-0 z-10 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Department</th>
+                        <th class="sticky top-0 z-10 w-28 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Date Needed</th>
+                        <th class="sticky top-0 z-10 w-32 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">PR Priority</th>
+                        <th class="sticky top-0 z-10 w-56 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">PR Title</th>
+                        <th class="sticky top-0 z-10 w-64 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Requester Remarks</th>
+                        <th class="sticky top-0 z-10 w-[360px] align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Items</th>
+                        <th class="sticky top-0 z-10 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Grand Total</th>
+                        <th class="sticky top-0 z-10 w-44 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Status</th>
+                        <th class="sticky top-0 z-10 w-40 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">Current Step</th>
+                        <th class="sticky top-0 z-10 w-64 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">FC Remarks</th>
 
                         @if ($isFinancialController)
-                        <th class="sticky top-0 z-10 w-96 align-middle border border-slate-300 bg-slate-100 px-3 py-3 text-center font-bold text-slate-800">FC Update</th>
+                        <th class="sticky top-0 z-10 w-80 align-middle border border-slate-300 bg-slate-100 px-2 py-2 text-center font-bold text-slate-800">FC Update</th>
                         @endif
                     </tr>
                 </thead>
@@ -451,70 +461,66 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                     @endphp
 
                     <tr class="hover:bg-slate-50">
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-center font-bold text-slate-700">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-700">
                             {{ $loop->iteration }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-2 py-2 font-bold text-slate-950">
                             {{ $prNumber }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-slate-800">
                             {{ $purchaseRequest->requester_name ?? '-' }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-slate-800">
                             {{ $purchaseRequest->department_name ?? '-' }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-center text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center text-slate-800">
                             {{ $formatDate($purchaseRequest->date_needed ?? null) }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-center">
-                            <span class="inline-flex min-w-[105px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center">
+                            <span class="inline-flex min-w-[82px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $priorityBadgeClass($priority) }}">
                                 {{ $formatPriority($priority) }}
                             </span>
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-2 py-2 font-bold text-slate-950">
                             {{ $purchaseRequest->title ?? '-' }}
                         </td>
 
-                        <td class="align-middle whitespace-pre-line border border-slate-300 px-3 py-4 text-slate-800">
+                        <td class="align-middle whitespace-pre-line border border-slate-300 px-2 py-2 text-slate-800">
                             {{ $getPrRemarks($purchaseRequest) }}
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-slate-800">
                             @if (($purchaseRequest->items ?? collect())->count() > 0)
-                            <div class="space-y-2">
+                            <div class="space-y-1.5">
                                 @foreach ($purchaseRequest->items as $item)
                                 @php
                                 $itemUnitPrice = $getItemUnitPrice($purchaseRequest, $item);
                                 $itemLineTotal = $getItemLineTotal($purchaseRequest, $item);
                                 @endphp
 
-                                <div class="border border-slate-200 bg-white px-3 py-2">
+                                <div class="border border-slate-200 bg-white px-2 py-1.5">
                                     <p class="font-bold text-slate-950">
                                         {{ $loop->iteration }}. {{ $item->item_name }}
                                     </p>
 
-                                    <p class="mt-1 text-slate-700">
+                                    <p class="mt-0.5 text-slate-700">
                                         Qty:
                                         <span class="font-bold">
                                             {{ rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') }}
                                         </span>
                                         {{ $item->unit ?: '' }}
-                                    </p>
-
-                                    <p class="mt-1 text-slate-700">
+                                        <span class="px-1 text-slate-400">|</span>
                                         Price / Item:
                                         <span class="font-bold text-slate-950">
                                             {{ $formatRupiah($itemUnitPrice) }}
                                         </span>
-                                    </p>
-
-                                    <p class="mt-1 text-slate-700">
+                                        <span class="px-1 text-slate-400">|</span>
                                         Total:
                                         <span class="font-bold text-slate-950">
                                             {{ $formatRupiah($itemLineTotal) }}
@@ -528,37 +534,38 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                             @endif
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-right">
-                            <span class="text-base font-bold text-slate-950">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-right">
+                            <span class="text-sm font-bold text-slate-950">
                                 {{ $formatRupiah($grandTotal) }}
                             </span>
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-center">
-                            <span class="inline-flex min-w-[150px] items-center justify-center border px-3 py-2 text-xs font-bold uppercase leading-tight {{ $statusBadgeClass($purchaseRequest->status) }}">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center">
+                            <span class="inline-flex min-w-[125px] items-center justify-center border px-2 py-1 text-[11px] font-bold uppercase leading-tight {{ $statusBadgeClass($purchaseRequest->status) }}">
                                 {{ $formatStatus($purchaseRequest->status) }}
                             </span>
                         </td>
 
-                        <td class="align-middle border border-slate-300 px-3 py-4 text-center text-slate-800">
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center text-slate-800">
                             {{ $formatStatus($purchaseRequest->current_step) }}
                         </td>
 
-                        <td class="align-middle whitespace-pre-line border border-slate-300 px-3 py-4 text-slate-800">
+                        <td class="align-middle whitespace-pre-line border border-slate-300 px-2 py-2 text-slate-800">
                             {{ filled($fcRemarks) ? $fcRemarks : '-' }}
                         </td>
 
                         @if ($isFinancialController)
-                        <td class="align-middle border border-slate-300 px-3 py-4">
-                            <form method="POST" action="{{ route('purchasing-lite.purchase-requests.meeting.update', $purchaseRequest) }}" class="space-y-3">
+                        <td class="align-middle border border-slate-300 px-2 py-2">
+                            <form method="POST" action="{{ route('purchasing-lite.purchase-requests.meeting.update', $purchaseRequest) }}" class="space-y-2">
                                 @csrf
 
                                 <input type="hidden" name="month" value="{{ $selectedMonth }}">
                                 <input type="hidden" name="year" value="{{ $selectedYear }}">
                                 <input type="hidden" name="status" value="{{ $selectedStatus }}">
                                 <input type="hidden" name="department" value="{{ $selectedDepartment }}">
+                                <input type="hidden" name="pr_number" value="{{ $selectedPrNumber }}">
 
-                                <select name="new_status" required class="h-11 w-full border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900">
+                                <select name="new_status" required class="h-9 w-full border border-slate-300 bg-white px-2 text-xs font-medium text-slate-900">
                                     @foreach ($statusOptions as $status)
                                     <option value="{{ $status }}" @selected((string) $purchaseRequest->status === (string) $status)>
                                         {{ $formatStatus($status) }}
@@ -566,9 +573,9 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                                     @endforeach
                                 </select>
 
-                                <textarea name="financial_controller_remarks" rows="4" class="w-full border border-slate-300 px-3 py-2 text-sm text-slate-900" placeholder="FC remarks">{{ old('financial_controller_remarks', $fcRemarks) }}</textarea>
+                                <textarea name="financial_controller_remarks" rows="3" class="w-full border border-slate-300 px-2 py-1.5 text-xs text-slate-900" placeholder="FC remarks">{{ old('financial_controller_remarks', $fcRemarks) }}</textarea>
 
-                                <button type="submit" class="inline-flex h-10 w-full items-center justify-center bg-green-700 px-4 text-sm font-bold text-white hover:bg-green-800">
+                                <button type="submit" class="inline-flex h-9 w-full items-center justify-center bg-green-700 px-3 text-xs font-bold text-white hover:bg-green-800">
                                     Save FC Update
                                 </button>
                             </form>
@@ -577,7 +584,7 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="{{ $isFinancialController ? 14 : 13 }}" class="border border-slate-300 px-4 py-8 text-center text-base text-slate-500">
+                        <td colspan="{{ $isFinancialController ? 14 : 13 }}" class="border border-slate-300 px-2 py-5 text-center text-sm text-slate-500">
                             No purchase request found for this filter.
                         </td>
                     </tr>

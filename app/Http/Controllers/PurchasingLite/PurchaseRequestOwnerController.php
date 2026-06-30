@@ -150,6 +150,76 @@ class PurchaseRequestOwnerController extends Controller
             ->with('success', 'Selected item(s) have been approved and sent to Financial Controller.');
     }
 
+    public function bulkReturnToPurchasing(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'approved_item_ids' => ['required', 'array', 'min:1'],
+            'approved_item_ids.*' => ['array'],
+            'approved_item_ids.*.*' => ['integer'],
+            'remarks' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $remarks = trim((string) $validated['remarks']);
+
+        $returnedPurchaseRequests = collect();
+
+        $returnGroups = collect($validated['approved_item_ids'])
+            ->mapWithKeys(function ($itemIds, $purchaseRequestId) {
+                return [
+                    (int) $purchaseRequestId => collect($itemIds)
+                        ->map(fn ($id) => (int) $id)
+                        ->unique()
+                        ->values(),
+                ];
+            })
+            ->filter(fn ($itemIds) => $itemIds->count() > 0);
+
+        if ($returnGroups->count() < 1) {
+            return back()->with('error', 'Please select at least one item to return to Purchasing.');
+        }
+
+        DB::transaction(function () use ($returnGroups, $remarks, &$returnedPurchaseRequests) {
+            foreach ($returnGroups as $purchaseRequestId => $returnedItemIds) {
+                $purchaseRequest = PurchaseRequest::query()
+                    ->with('items')
+                    ->where('id', $purchaseRequestId)
+                    ->where('current_step', 'owner')
+                    ->first();
+
+                if (! $purchaseRequest) {
+                    continue;
+                }
+
+                $returnedPurchaseRequest = $this->processOwnerReturnedItemsToPurchasing($purchaseRequest, $returnedItemIds, $remarks);
+
+                if ($returnedPurchaseRequest) {
+                    $returnedPurchaseRequests->push($returnedPurchaseRequest);
+                }
+            }
+        });
+
+        foreach ($returnedPurchaseRequests as $purchaseRequest) {
+            app(PurchasingLiteEmailService::class)->sendToRoles(
+                purchaseRequest: $purchaseRequest,
+                roles: ['purchasing'],
+                subject: 'PR Returned to Purchasing by OR - ' . $this->getPurchaseRequestNumber($purchaseRequest),
+                title: 'PR Returned by OR',
+                messageText: 'OR has returned this purchase request to Purchasing for update.',
+                buttonLabel: 'Open PR',
+                buttonUrl: route('purchasing-lite.purchase-requests.show', $purchaseRequest),
+                remarks: $remarks
+            );
+        }
+
+        if ($returnedPurchaseRequests->count() < 1) {
+            return back()->with('error', 'Selected PR is no longer waiting for OR approval.');
+        }
+
+        return redirect()
+            ->route('purchasing-lite.dashboard')
+            ->with('success', 'Selected item(s) have been returned to Purchasing.');
+    }
+
     public function saveQuantities(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -433,6 +503,133 @@ class PurchaseRequestOwnerController extends Controller
         $purchaseRequest->save();
     }
 
+    private function processOwnerReturnedItemsToPurchasing(PurchaseRequest $purchaseRequest, $returnedItemIds, string $remarks): ?PurchaseRequest
+    {
+        $purchaseRequest->loadMissing('items');
+
+        $items = $purchaseRequest->items;
+
+        if ($items->count() < 1) {
+            return null;
+        }
+
+        $validItemIds = $items->pluck('id')->map(fn ($id) => (int) $id);
+
+        $returnedItemIds = collect($returnedItemIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $validItemIds->contains($id))
+            ->unique()
+            ->values();
+
+        if ($returnedItemIds->count() < 1) {
+            return null;
+        }
+
+        $returnedItems = $items->filter(function ($item) use ($returnedItemIds) {
+            return $returnedItemIds->contains((int) $item->id);
+        })->values();
+
+        $keptItems = $items->filter(function ($item) use ($returnedItemIds) {
+            return ! $returnedItemIds->contains((int) $item->id);
+        })->values();
+
+        $oldStatus = (string) ($purchaseRequest->status ?? '');
+
+        if ($keptItems->count() < 1) {
+            $this->sendToPurchasingFromOwner($purchaseRequest, $remarks);
+
+            $this->createLog($purchaseRequest, [
+                'action' => 'owner_returned_to_purchasing',
+                'from_status' => $oldStatus,
+                'to_status' => 'revision_to_purchasing_from_owner',
+                'remarks' => $remarks,
+            ]);
+
+            return $purchaseRequest;
+        }
+
+        $purchasingPurchaseRequest = $this->createPurchasingReturnSplitPurchaseRequest($purchaseRequest, $remarks);
+
+        $returnedItemIdsArray = $returnedItems
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $this->moveItemsToPurchaseRequest($returnedItems, $purchasingPurchaseRequest);
+        $this->moveRelatedVendorRowsToPurchaseRequest($purchaseRequest, $purchasingPurchaseRequest, $returnedItemIdsArray);
+
+        $this->safeFill($purchaseRequest, [
+            'status' => 'submitted_to_owner',
+            'current_step' => 'owner',
+            'owner_remarks' => $remarks,
+            'owner_split_remarks' => $remarks,
+            'split_remarks' => $remarks,
+            'current_status_at' => now(),
+        ]);
+
+        $purchaseRequest->save();
+
+        $this->createLog($purchaseRequest, [
+            'action' => 'owner_partial_return_original_stays_owner',
+            'from_status' => $oldStatus,
+            'to_status' => 'submitted_to_owner',
+            'remarks' => $remarks,
+        ]);
+
+        $this->createLog($purchasingPurchaseRequest, [
+            'action' => 'owner_partial_returned_to_purchasing',
+            'from_status' => $oldStatus,
+            'to_status' => 'revision_to_purchasing_from_owner',
+            'remarks' => $remarks,
+        ]);
+
+        return $purchasingPurchaseRequest;
+    }
+
+    private function sendToPurchasingFromOwner(PurchaseRequest $purchaseRequest, string $remarks): void
+    {
+        $this->safeFill($purchaseRequest, [
+            'status' => 'revision_to_purchasing_from_owner',
+            'current_step' => 'purchasing',
+            'owner_remarks' => $remarks,
+            'owner_return_remarks' => $remarks,
+            'current_status_at' => now(),
+        ]);
+
+        $purchaseRequest->save();
+    }
+
+    private function createPurchasingReturnSplitPurchaseRequest(PurchaseRequest $purchaseRequest, string $remarks): PurchaseRequest
+    {
+        $purchasingPurchaseRequest = $purchaseRequest->replicate();
+
+        $newPrNumber = $this->generateSplitPrNumber($purchaseRequest);
+
+        $this->safeFill($purchasingPurchaseRequest, [
+            'pr_number' => $newPrNumber,
+            'request_number' => $newPrNumber,
+            'status' => 'revision_to_purchasing_from_owner',
+            'current_step' => 'purchasing',
+            'requester_remarks' => $this->appendSplitNote(
+                (string) ($purchaseRequest->requester_remarks ?? ''),
+                $purchaseRequest->pr_number ?? $purchaseRequest->request_number ?? '-'
+            ),
+            'owner_remarks' => $remarks,
+            'owner_return_remarks' => $remarks,
+            'owner_split_remarks' => $remarks,
+            'split_remarks' => $remarks,
+            'owner_approved_at' => null,
+            'approved_at' => null,
+            'rejected_at' => null,
+            'current_status_at' => now(),
+        ]);
+
+        $purchasingPurchaseRequest->save();
+
+        return $purchasingPurchaseRequest;
+    }
+
     private function createFinanceSplitPurchaseRequest(PurchaseRequest $purchaseRequest, string $remarks): PurchaseRequest
     {
         $financePurchaseRequest = $purchaseRequest->replicate();
@@ -532,6 +729,8 @@ class PurchaseRequestOwnerController extends Controller
             return;
         }
 
+        $this->moveVendorOfferItemsToPurchaseRequest($oldPurchaseRequest, $targetPurchaseRequest, $itemIds);
+
         $candidateTables = [
             'purchase_request_offer_items',
             'purchase_request_vendor_offer_items',
@@ -567,6 +766,125 @@ class PurchaseRequestOwnerController extends Controller
 
             $query->update($updates);
         }
+    }
+
+    private function moveVendorOfferItemsToPurchaseRequest(
+        PurchaseRequest $oldPurchaseRequest,
+        PurchaseRequest $targetPurchaseRequest,
+        array $itemIds
+    ): void {
+        $offerTable = 'purchase_request_vendor_offers';
+        $offerItemTable = 'purchase_request_vendor_offer_items';
+
+        if (
+            ! Schema::hasTable($offerTable)
+            || ! Schema::hasTable($offerItemTable)
+            || ! Schema::hasColumn($offerItemTable, 'purchase_request_vendor_offer_id')
+            || ! Schema::hasColumn($offerItemTable, 'purchase_request_item_id')
+        ) {
+            return;
+        }
+
+        $itemIds = collect($itemIds)
+            ->map(fn($itemId) => (int) $itemId)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($itemIds)) {
+            return;
+        }
+
+        $selectedOfferItems = DB::table($offerItemTable)
+            ->whereIn('purchase_request_item_id', $itemIds)
+            ->get()
+            ->groupBy('purchase_request_vendor_offer_id');
+
+        foreach ($selectedOfferItems as $offerId => $offerItems) {
+            $offer = DB::table($offerTable)->where('id', $offerId)->first();
+
+            if (
+                ! $offer
+                || (int) $offer->purchase_request_id === (int) $targetPurchaseRequest->id
+                || (int) $offer->purchase_request_id !== (int) $oldPurchaseRequest->id
+            ) {
+                continue;
+            }
+
+            $selectedOfferItemIds = $offerItems
+                ->pluck('id')
+                ->map(fn($offerItemId) => (int) $offerItemId)
+                ->all();
+
+            $allOfferItemIds = DB::table($offerItemTable)
+                ->where('purchase_request_vendor_offer_id', $offerId)
+                ->pluck('id')
+                ->map(fn($offerItemId) => (int) $offerItemId)
+                ->all();
+
+            $remainingOfferItemIds = array_values(array_diff($allOfferItemIds, $selectedOfferItemIds));
+
+            if (empty($remainingOfferItemIds)) {
+                $updates = [
+                    'purchase_request_id' => $targetPurchaseRequest->id,
+                ];
+
+                if (Schema::hasColumn($offerTable, 'updated_at')) {
+                    $updates['updated_at'] = now();
+                }
+
+                DB::table($offerTable)->where('id', $offerId)->update($updates);
+                $this->refreshVendorOfferTotalById((int) $offerId);
+
+                continue;
+            }
+
+            $newOfferId = $this->copyVendorOfferToPurchaseRequest($offer, $targetPurchaseRequest->id);
+            $updates = [
+                'purchase_request_vendor_offer_id' => $newOfferId,
+            ];
+
+            if (Schema::hasColumn($offerItemTable, 'updated_at')) {
+                $updates['updated_at'] = now();
+            }
+
+            DB::table($offerItemTable)
+                ->whereIn('id', $selectedOfferItemIds)
+                ->update($updates);
+
+            $this->refreshVendorOfferTotalById((int) $offerId);
+            $this->refreshVendorOfferTotalById($newOfferId);
+        }
+    }
+
+    private function copyVendorOfferToPurchaseRequest(object $offer, int $purchaseRequestId): int
+    {
+        $offerTable = 'purchase_request_vendor_offers';
+        $columns = Schema::getColumnListing($offerTable);
+        $data = [];
+
+        foreach ($columns as $column) {
+            if ($column === 'id') {
+                continue;
+            }
+
+            if (property_exists($offer, $column)) {
+                $data[$column] = $offer->{$column};
+            }
+        }
+
+        $data['purchase_request_id'] = $purchaseRequestId;
+
+        if (in_array('created_at', $columns, true)) {
+            $data['created_at'] = now();
+        }
+
+        if (in_array('updated_at', $columns, true)) {
+            $data['updated_at'] = now();
+        }
+
+        return (int) DB::table($offerTable)->insertGetId($data);
     }
 
     private function normalizeOwnerQuantities(array $ownerQuantities): array
@@ -711,14 +1029,26 @@ class PurchaseRequestOwnerController extends Controller
         if (
             $itemTable !== 'purchase_request_vendor_offer_items'
             || ! isset($itemRow->purchase_request_vendor_offer_id)
+        ) {
+            return;
+        }
+
+        $this->refreshVendorOfferTotalById((int) $itemRow->purchase_request_vendor_offer_id);
+    }
+
+    private function refreshVendorOfferTotalById(int $vendorOfferId): void
+    {
+        if (
+            $vendorOfferId <= 0
             || ! Schema::hasTable('purchase_request_vendor_offers')
+            || ! Schema::hasTable('purchase_request_vendor_offer_items')
             || ! Schema::hasColumn('purchase_request_vendor_offers', 'offer_total')
         ) {
             return;
         }
 
         $offerTotal = (float) DB::table('purchase_request_vendor_offer_items')
-            ->where('purchase_request_vendor_offer_id', $itemRow->purchase_request_vendor_offer_id)
+            ->where('purchase_request_vendor_offer_id', $vendorOfferId)
             ->sum('total_price');
 
         $updates = ['offer_total' => $offerTotal];
@@ -728,7 +1058,7 @@ class PurchaseRequestOwnerController extends Controller
         }
 
         DB::table('purchase_request_vendor_offers')
-            ->where('id', $itemRow->purchase_request_vendor_offer_id)
+            ->where('id', $vendorOfferId)
             ->update($updates);
     }
 

@@ -38,6 +38,7 @@ in_array((string) $purchaseRequest->status, $returnStatuses, true)
 && filled($purchasingReturnRemark);
 
 $isReturnedPr = in_array((string) $purchaseRequest->status, $returnStatuses, true);
+$canDeleteDraftPr = (string) $purchaseRequest->status === 'draft';
 $currentPriority = old('priority', $purchaseRequest->priority ?? 'regular');
 
 $isAttachmentImage = function ($path) {
@@ -336,6 +337,17 @@ return in_array(strtolower(pathinfo((string) $path, PATHINFO_EXTENSION)), [
 </form>
 
 <section class="mt-6 flex justify-end gap-3 border border-slate-300 bg-white p-5 shadow-sm">
+    @if ($canDeleteDraftPr)
+    <form method="POST" action="{{ route('purchasing-lite.purchase-requests.destroy', $purchaseRequest) }}" onsubmit="return confirm('Delete this draft PR? This action cannot be undone.');">
+        @csrf
+        @method('DELETE')
+
+        <button type="submit" class="inline-flex h-10 items-center justify-center border border-red-700 bg-white px-6 text-sm font-bold text-red-800 transition hover:bg-red-50">
+            Delete PR
+        </button>
+    </form>
+    @endif
+
     <form method="POST" action="{{ route('purchasing-lite.purchase-requests.submit', $purchaseRequest) }}" onsubmit="return confirm('Submit this PR to Purchasing? After submitting, you cannot edit it unless Purchasing returns it.');">
         @csrf
 
