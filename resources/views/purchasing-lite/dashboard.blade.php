@@ -114,9 +114,11 @@ default => 'border-slate-400 bg-white text-slate-800',
 
         <div class="flex items-center gap-3">
             @if (in_array($normalizedRole, ['admin', 'purchasing', 'financial controller', 'financialcontroller', 'fc', 'accounting'], true))
-            <a href="{{ route('purchasing-lite.purchasing.payment-summary') }}" class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
-                General Payment Summary
-            </a>
+            <form id="general-payment-summary-selection" method="GET" action="{{ route('purchasing-lite.purchasing.payment-summary') }}">
+                <button type="submit" class="inline-flex h-10 items-center justify-center border border-blue-700 bg-white px-6 text-sm font-bold text-blue-800 transition hover:bg-blue-50">
+                    General Payment Summary
+                </button>
+            </form>
             @endif
 
             <a href="{{ route('purchasing-lite.purchase-requests.meeting-list') }}" class="inline-flex h-10 items-center justify-center border border-slate-950 bg-white px-6 text-sm font-bold text-slate-950 transition hover:bg-slate-100">
@@ -144,11 +146,15 @@ default => 'border-slate-400 bg-white text-slate-800',
     </div>
 
     <div class="overflow-x-auto">
-        <table class="border-collapse text-xs" style="min-width: 1360px;">
+        <table class="border-collapse text-xs" style="min-width: 1400px;">
             <thead>
                 <tr class="bg-slate-100">
                     <th class="w-12 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         No
+                    </th>
+
+                    <th class="w-10 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
+                        Select
                     </th>
 
                     <th class="w-36 border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
@@ -237,6 +243,14 @@ default => 'border-slate-400 bg-white text-slate-800',
                         {{ $loop->iteration }}
                     </td>
 
+                    <td class="border border-slate-300 px-2 py-2 text-center">
+                        @if ($needsPurchasingSummary)
+                        <input type="checkbox" name="purchase_request_ids[]" value="{{ $purchaseRequest->id }}" form="general-payment-summary-selection" class="h-4 w-4 border-slate-400 text-blue-700 focus:ring-blue-200">
+                        @else
+                        <span class="text-slate-400">-</span>
+                        @endif
+                    </td>
+
                     <td class="border border-slate-300 px-2 py-2 font-bold text-slate-900">
                         {{ $purchaseRequest->pr_number }}
                     </td>
@@ -289,7 +303,7 @@ default => 'border-slate-400 bg-white text-slate-800',
 
                     <td class="border border-slate-300 px-2 py-2 text-center">
                         @if ($needsPurchasingSummary)
-                        <a href="{{ route('purchasing-lite.purchasing.payment-summary') }}" class="inline-flex h-8 items-center justify-center border border-blue-700 bg-white px-3 text-xs font-bold text-blue-800 transition hover:bg-blue-50">
+                        <a href="{{ route('purchasing-lite.purchasing.payment-summary', ['purchase_request_ids' => [$purchaseRequest->id]]) }}" class="inline-flex h-8 items-center justify-center border border-blue-700 bg-white px-3 text-xs font-bold text-blue-800 transition hover:bg-blue-50">
                             Summary
                         </a>
                         @elseif ($isPurchasingUser && $needsPurchasingFollowUp)
@@ -309,7 +323,7 @@ default => 'border-slate-400 bg-white text-slate-800',
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="13" class="border border-slate-300 px-2 py-4 text-center text-sm text-slate-500">
+                    <td colspan="14" class="border border-slate-300 px-2 py-4 text-center text-sm text-slate-500">
                         No purchase request data yet.
                     </td>
                 </tr>

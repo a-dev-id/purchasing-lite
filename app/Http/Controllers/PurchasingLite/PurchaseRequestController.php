@@ -417,7 +417,7 @@ class PurchaseRequestController extends Controller
         }
     }
 
-    public function generalPaymentSummary()
+    public function generalPaymentSummary(Request $request)
     {
         if (! Auth::check()) {
             return redirect('/purchasing-lite/login');
@@ -430,7 +430,8 @@ class PurchaseRequestController extends Controller
                 ->with('error', 'You are not allowed to view the payment summary.');
         }
 
-        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+        $selectedPurchaseRequestIds = $this->selectedGeneralPaymentSummaryPurchaseRequestIds($request);
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests($selectedPurchaseRequestIds)->get();
         $vendorBidOptions = [];
 
         foreach ($purchaseRequests as $purchaseRequest) {
@@ -442,6 +443,7 @@ class PurchaseRequestController extends Controller
             'purchaseRequests' => $purchaseRequests,
             'vendorBidOptions' => $vendorBidOptions,
             'canEditPaymentSummary' => $this->userCanEditGeneralPaymentSummary($user),
+            'selectedPurchaseRequestIds' => $selectedPurchaseRequestIds,
         ]);
     }
 
@@ -467,7 +469,8 @@ class PurchaseRequestController extends Controller
         ]);
 
         $itemUpdates = $validated['items'] ?? [];
-        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+        $selectedPurchaseRequestIds = $this->selectedGeneralPaymentSummaryPurchaseRequestIds($request);
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests($selectedPurchaseRequestIds)->get();
 
         DB::beginTransaction();
 
@@ -538,18 +541,18 @@ class PurchaseRequestController extends Controller
             DB::commit();
 
             return redirect()
-                ->route('purchasing-lite.purchasing.payment-summary')
+                ->route('purchasing-lite.purchasing.payment-summary', $this->generalPaymentSummaryRouteParams($selectedPurchaseRequestIds))
                 ->with('success', 'General payment summary has been saved.');
         } catch (\Throwable $e) {
             DB::rollBack();
 
             return redirect()
-                ->route('purchasing-lite.purchasing.payment-summary')
+                ->route('purchasing-lite.purchasing.payment-summary', $this->generalPaymentSummaryRouteParams($selectedPurchaseRequestIds))
                 ->with('error', 'Failed to save payment summary. ' . $e->getMessage());
         }
     }
 
-    public function downloadGeneralPaymentSummaryPdf()
+    public function downloadGeneralPaymentSummaryPdf(Request $request)
     {
         if (! Auth::check()) {
             return redirect('/purchasing-lite/login');
@@ -562,7 +565,8 @@ class PurchaseRequestController extends Controller
                 ->with('error', 'You are not allowed to download this payment summary.');
         }
 
-        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests()->get();
+        $selectedPurchaseRequestIds = $this->selectedGeneralPaymentSummaryPurchaseRequestIds($request);
+        $purchaseRequests = $this->generalPaymentSummaryPurchaseRequests($selectedPurchaseRequestIds)->get();
         $rows = [];
         $grandTotal = 0;
         $rowNumber = 1;
@@ -1269,9 +1273,9 @@ class PurchaseRequestController extends Controller
         return in_array($role, ['admin', 'purchasing'], true);
     }
 
-    private function generalPaymentSummaryPurchaseRequests()
+    private function generalPaymentSummaryPurchaseRequests(array $selectedPurchaseRequestIds = [])
     {
-        return PurchaseRequest::query()
+        $query = PurchaseRequest::query()
             ->with([
                 'items' => function ($query) {
                     $query->orderBy('sort_order')->orderBy('id');
@@ -1281,6 +1285,35 @@ class PurchaseRequestController extends Controller
             ])
             ->where('status', 'on_progress')
             ->latest('id');
+
+        if (! empty($selectedPurchaseRequestIds)) {
+            $query->whereIn('id', $selectedPurchaseRequestIds);
+        }
+
+        return $query;
+    }
+
+    private function selectedGeneralPaymentSummaryPurchaseRequestIds(Request $request): array
+    {
+        $selectedIds = $request->input('purchase_request_ids', []);
+
+        if (! is_array($selectedIds)) {
+            $selectedIds = [$selectedIds];
+        }
+
+        return collect($selectedIds)
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function generalPaymentSummaryRouteParams(array $selectedPurchaseRequestIds): array
+    {
+        return empty($selectedPurchaseRequestIds)
+            ? []
+            : ['purchase_request_ids' => $selectedPurchaseRequestIds];
     }
 
     private function userCanViewPr($user, PurchaseRequest $purchaseRequest): bool
@@ -1716,10 +1749,9 @@ class PurchaseRequestController extends Controller
         $pageHeight = 595;
         $left = 24;
         $top = 555;
-        $content = "0.2 w\n";
-
-        $content .= $this->pdfText('General Payment Summary', $left, $top, 14, true);
-        $content .= $this->pdfText('Generated: ' . now()->format('d M Y H:i'), $left, $top - 22, 9);
+        $bottom = 45;
+        $pages = [];
+        $content = '';
 
         $columns = [
             ['key' => 'no', 'label' => 'No', 'width' => 25, 'align' => 'center'],
@@ -1734,31 +1766,11 @@ class PurchaseRequestController extends Controller
         ];
 
         $x = $left;
-        $y = $top - 50;
+        $y = 0;
         $headerHeight = 24;
         $rowHeight = 32;
         $totalWidth = array_sum(array_column($columns, 'width'));
-
-        $content .= "0.94 0.96 0.98 rg\n";
-        $content .= $this->pdfRect($x, $y - $headerHeight, $totalWidth, $headerHeight, true);
-        $content .= "0 0 0 RG\n0 g\n";
-
-        $columnX = $x;
-
-        foreach ($columns as $column) {
-            $content .= $this->pdfRect($columnX, $y - $headerHeight, $column['width'], $headerHeight);
-            $content .= $this->pdfText($column['label'], $columnX + 4, $y - 15, 8, true);
-            $columnX += $column['width'];
-        }
-
-        $y -= $headerHeight;
-        $columnPositions = [];
-        $positionX = $x;
-
-        foreach ($columns as $column) {
-            $columnPositions[$column['key']] = $positionX;
-            $positionX += $column['width'];
-        }
+        $generatedAt = now()->format('d M Y H:i');
 
         $grandTotalHeight = 28;
         $totalColumnX = $x;
@@ -1775,102 +1787,63 @@ class PurchaseRequestController extends Controller
 
         $afterTotalWidth = $totalWidth - (($totalColumnX - $x) + $totalColumnWidth);
 
-        $paymentCategories = [
-            'Cash' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Cash')->values(),
-            'Credit' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Credit')->values(),
-            'Transfer' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Transfer')->values(),
-            'No Payment Method' => collect($rows)->filter(fn($row) => ! in_array(($row['payment'] ?? '-'), ['Cash', 'Credit', 'Transfer'], true))->values(),
-        ];
+        $drawHeader = function () use (&$content, &$y, $left, $top, $x, $columns, $headerHeight, $totalWidth, $generatedAt) {
+            $content .= "0.2 w\n";
+            $content .= $this->pdfText('General Payment Summary', $left, $top, 14, true);
+            $content .= $this->pdfText('Generated: ' . $generatedAt, $left, $top - 22, 9);
 
-        $pdfPrNumber = 1;
-
-        foreach ($paymentCategories as $paymentCategoryLabel => $categoryRows) {
-            if ($categoryRows->isEmpty()) {
-                continue;
-            }
-
-            $categoryTotal = (float) $categoryRows->sum(fn($row) => (float) ($row['total_value'] ?? 0));
-            $categoryHeaderHeight = 20;
-
-            if ($y - $categoryHeaderHeight < 45) {
-                break;
-            }
-
-            $content .= "0.90 0.93 0.97 rg\n";
-            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight, true);
+            $y = $top - 50;
+            $content .= "0.94 0.96 0.98 rg\n";
+            $content .= $this->pdfRect($x, $y - $headerHeight, $totalWidth, $headerHeight, true);
             $content .= "0 0 0 RG\n0 g\n";
-            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight);
-            $content .= $this->pdfText($paymentCategoryLabel, $x + 6, $y - 13, 9, true);
-            $y -= $categoryHeaderHeight;
 
-            $groupedRows = $categoryRows
-                ->groupBy('pr')
-                ->values();
+            $columnX = $x;
 
-            foreach ($groupedRows as $groupRows) {
-            $groupRows = $groupRows->values();
-            $groupHeight = $rowHeight * max(1, $groupRows->count());
-
-            if ($y - $groupHeight < 45) {
-                break;
+            foreach ($columns as $column) {
+                $content .= $this->pdfRect($columnX, $y - $headerHeight, $column['width'], $headerHeight);
+                $content .= $this->pdfText($column['label'], $columnX + 4, $y - 15, 8, true);
+                $columnX += $column['width'];
             }
 
-            $noColumn = $columns[0];
-            $prColumn = $columns[1];
-            $noX = $x;
-            $prX = $x + $noColumn['width'];
-            $groupTopY = $y;
+            $y -= $headerHeight;
+        };
 
-            $content .= $this->pdfRect($noX, $groupTopY - $groupHeight, $noColumn['width'], $groupHeight);
-            $content .= $this->pdfText((string) $pdfPrNumber, $noX + 9, $groupTopY - 14, 7);
-
-            $content .= $this->pdfRect($prX, $groupTopY - $groupHeight, $prColumn['width'], $groupHeight);
-            $prLines = array_slice($this->wrapPdfLine((string) ($groupRows[0]['pr'] ?? '-'), 18), 0, 3);
-            $prTextY = $groupTopY - 14;
-
-            foreach ($prLines as $prLine) {
-                $content .= $this->pdfText($prLine, $prX + 4, $prTextY, 7);
-                $prTextY -= 10;
+        $startPage = function () use (&$pages, &$content, $drawHeader) {
+            if ($content !== '') {
+                $pages[] = $content;
             }
 
-            foreach ($groupRows as $row) {
-                $columnX = $x + $noColumn['width'] + $prColumn['width'];
+            $content = '';
+            $drawHeader();
+        };
 
-                foreach (array_slice($columns, 2) as $column) {
-                    $width = $column['width'];
-                    $value = (string) ($row[$column['key']] ?? '-');
-                    $content .= $this->pdfRect($columnX, $y - $rowHeight, $width, $rowHeight);
+        $ensureSpace = function (float $height) use (&$y, $bottom, $startPage) {
+            if ($y - $height < $bottom) {
+                $startPage();
+            }
+        };
 
-                    $textX = $columnX + 4;
+        $drawCellText = function (array $column, string $value, float $columnX, float $cellTopY) use (&$content) {
+            $width = $column['width'];
+            $textX = $columnX + 4;
 
-                    if ($column['align'] === 'right') {
-                        $textX = $columnX + $width - 4 - min(strlen($value) * 4.2, $width - 8);
-                    } elseif ($column['align'] === 'center') {
-                        $textX = $columnX + max(4, ($width - strlen($value) * 4.2) / 2);
-                    }
-
-                    $wrappedLines = array_slice($this->wrapPdfLine($value, max(8, (int) floor($width / 5))), 0, 2);
-                    $textY = $y - 12;
-
-                    foreach ($wrappedLines as $wrappedLine) {
-                        $content .= $this->pdfText($wrappedLine, $textX, $textY, 7);
-                        $textY -= 10;
-                    }
-
-                    $columnX += $width;
-                }
-
-                $y -= $rowHeight;
+            if ($column['align'] === 'right') {
+                $textX = $columnX + $width - 4 - min(strlen($value) * 4.2, $width - 8);
+            } elseif ($column['align'] === 'center') {
+                $textX = $columnX + max(4, ($width - strlen($value) * 4.2) / 2);
             }
 
-            $pdfPrNumber++;
-        }
+            $wrappedLines = array_slice($this->wrapPdfLine($value, max(8, (int) floor($width / 5))), 0, 2);
+            $textY = $cellTopY - 12;
 
-            if ($y - $grandTotalHeight < 45) {
-                break;
+            foreach ($wrappedLines as $wrappedLine) {
+                $content .= $this->pdfText($wrappedLine, $textX, $textY, 7);
+                $textY -= 10;
             }
+        };
 
-            $categoryTotalText = $this->formatRupiahForSummary($categoryTotal);
+        $drawTotalRow = function (string $label, float $amount) use (&$content, &$y, $x, $totalWidth, $grandTotalHeight, $totalColumnX, $totalColumnWidth, $afterTotalWidth) {
+            $totalText = $this->formatRupiahForSummary($amount);
             $content .= "0.94 0.96 0.98 rg\n";
             $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth, $grandTotalHeight, true);
             $content .= "0 0 0 RG\n0 g\n";
@@ -1881,26 +1854,63 @@ class PurchaseRequestController extends Controller
                 $content .= $this->pdfRect($totalColumnX + $totalColumnWidth, $y - $grandTotalHeight, $afterTotalWidth, $grandTotalHeight);
             }
 
-            $content .= $this->pdfText($paymentCategoryLabel . ' Total', $totalColumnX - 92, $y - 17, 9, true);
-            $content .= $this->pdfText($categoryTotalText, $totalColumnX + $totalColumnWidth - 4 - min(strlen($categoryTotalText) * 4.8, $totalColumnWidth - 8), $y - 17, 9, true);
+            $content .= $this->pdfText($label, $totalColumnX - 92, $y - 17, 9, true);
+            $content .= $this->pdfText($totalText, $totalColumnX + $totalColumnWidth - 4 - min(strlen($totalText) * 4.8, $totalColumnWidth - 8), $y - 17, 9, true);
             $y -= $grandTotalHeight;
+        };
+
+        $paymentCategories = [
+            'Cash' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Cash')->values(),
+            'Credit' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Credit')->values(),
+            'Transfer' => collect($rows)->filter(fn($row) => ($row['payment'] ?? '-') === 'Transfer')->values(),
+            'No Payment Method' => collect($rows)->filter(fn($row) => ! in_array(($row['payment'] ?? '-'), ['Cash', 'Credit', 'Transfer'], true))->values(),
+        ];
+
+        $startPage();
+
+        foreach ($paymentCategories as $paymentCategoryLabel => $categoryRows) {
+            if ($categoryRows->isEmpty()) {
+                continue;
+            }
+
+            $categoryTotal = (float) $categoryRows->sum(fn($row) => (float) ($row['total_value'] ?? 0));
+            $categoryHeaderHeight = 20;
+            $ensureSpace($categoryHeaderHeight);
+
+            $content .= "0.90 0.93 0.97 rg\n";
+            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight, true);
+            $content .= "0 0 0 RG\n0 g\n";
+            $content .= $this->pdfRect($x, $y - $categoryHeaderHeight, $totalWidth, $categoryHeaderHeight);
+            $content .= $this->pdfText($paymentCategoryLabel, $x + 6, $y - 13, 9, true);
+            $y -= $categoryHeaderHeight;
+
+            foreach ($categoryRows as $row) {
+                $ensureSpace($rowHeight);
+                $columnX = $x;
+
+                foreach ($columns as $column) {
+                    $width = $column['width'];
+                    $value = (string) ($row[$column['key']] ?? '-');
+                    $content .= $this->pdfRect($columnX, $y - $rowHeight, $width, $rowHeight);
+                    $drawCellText($column, $value, $columnX, $y);
+                    $columnX += $width;
+                }
+
+                $y -= $rowHeight;
+            }
+
+            $ensureSpace($grandTotalHeight);
+            $drawTotalRow($paymentCategoryLabel . ' Total', $categoryTotal);
         }
 
-        $content .= "0.94 0.96 0.98 rg\n";
-        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalWidth, $grandTotalHeight, true);
-        $content .= "0 0 0 RG\n0 g\n";
-        $content .= $this->pdfRect($x, $y - $grandTotalHeight, $totalColumnX - $x, $grandTotalHeight);
-        $content .= $this->pdfRect($totalColumnX, $y - $grandTotalHeight, $totalColumnWidth, $grandTotalHeight);
+        $ensureSpace($grandTotalHeight);
+        $drawTotalRow('Grand Total', $grandTotal);
 
-        if ($afterTotalWidth > 0) {
-            $content .= $this->pdfRect($totalColumnX + $totalColumnWidth, $y - $grandTotalHeight, $afterTotalWidth, $grandTotalHeight);
+        if ($content !== '') {
+            $pages[] = $content;
         }
 
-        $grandTotalText = $this->formatRupiahForSummary($grandTotal);
-        $content .= $this->pdfText('Grand Total', $totalColumnX - 78, $y - 17, 9, true);
-        $content .= $this->pdfText($grandTotalText, $totalColumnX + $totalColumnWidth - 4 - min(strlen($grandTotalText) * 4.8, $totalColumnWidth - 8), $y - 17, 9, true);
-
-        return $this->buildPdf($content, $pageWidth, $pageHeight);
+        return $this->buildPdfPages($pages, $pageWidth, $pageHeight);
     }
 
     private function pdfText(string $text, float $x, float $y, int $size = 8, bool $bold = false): string
@@ -1917,14 +1927,30 @@ class PurchaseRequestController extends Controller
 
     private function buildPdf(string $content, int $pageWidth, int $pageHeight): string
     {
+        return $this->buildPdfPages([$content], $pageWidth, $pageHeight);
+    }
+
+    private function buildPdfPages(array $pages, int $pageWidth, int $pageHeight): string
+    {
         $objects = [];
+        $pageCount = count($pages);
+        $kids = [];
+
+        foreach ($pages as $index => $pageContent) {
+            $kids[] = (5 + ($index * 2)) . ' 0 R';
+        }
 
         $objects[] = "<< /Type /Catalog /Pages 2 0 R >>";
-        $objects[] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
-        $objects[] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$pageWidth} {$pageHeight}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>";
+        $objects[] = "<< /Type /Pages /Kids [" . implode(' ', $kids) . "] /Count {$pageCount} >>";
         $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
         $objects[] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
-        $objects[] = "<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream";
+
+        foreach ($pages as $index => $pageContent) {
+            $contentObjectNumber = 6 + ($index * 2);
+
+            $objects[] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$pageWidth} {$pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {$contentObjectNumber} 0 R >>";
+            $objects[] = "<< /Length " . strlen($pageContent) . " >>\nstream\n" . $pageContent . "endstream";
+        }
 
         $pdf = "%PDF-1.4\n";
         $offsets = [0];

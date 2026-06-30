@@ -13,6 +13,8 @@ return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
 };
 
 $grandTotal = 0;
+$selectedPurchaseRequestIds = $selectedPurchaseRequestIds ?? [];
+$summaryRouteParams = empty($selectedPurchaseRequestIds) ? [] : ['purchase_request_ids' => $selectedPurchaseRequestIds];
 @endphp
 
 <section class="mb-4 border border-slate-300 bg-white p-4 shadow-sm">
@@ -23,7 +25,11 @@ $grandTotal = 0;
             </h2>
 
             <p class="mt-1 text-sm text-slate-600">
+                @if (! empty($selectedPurchaseRequestIds))
+                Showing selected On Progress PR only.
+                @else
                 All PR items marked On Progress by Accounting/Financial Controller.
+                @endif
             </p>
         </div>
 
@@ -32,7 +38,7 @@ $grandTotal = 0;
                 Back
             </a>
 
-            <a href="{{ route('purchasing-lite.purchasing.payment-summary.pdf') }}" class="inline-flex h-9 items-center justify-center bg-blue-700 px-5 text-xs font-bold text-white transition hover:bg-blue-800">
+            <a href="{{ route('purchasing-lite.purchasing.payment-summary.pdf', $summaryRouteParams) }}" class="inline-flex h-9 items-center justify-center bg-blue-700 px-5 text-xs font-bold text-white transition hover:bg-blue-800">
                 Download PDF
             </a>
         </div>
@@ -47,7 +53,7 @@ $grandTotal = 0;
     </div>
 
     @if ($canEditPaymentSummary)
-    <form method="POST" action="{{ route('purchasing-lite.purchasing.payment-summary.save') }}">
+    <form method="POST" action="{{ route('purchasing-lite.purchasing.payment-summary.save', $summaryRouteParams) }}">
         @csrf
     @endif
 
