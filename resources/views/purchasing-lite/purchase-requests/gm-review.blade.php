@@ -406,6 +406,10 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
                             Stock
                         </th>
 
+                        <th class="w-36 border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
+                            Last Purchase
+                        </th>
+
                         <th class="min-w-[220px] border border-slate-300 px-3 py-3 text-center font-bold text-slate-800">
                             Selected Vendor
                         </th>
@@ -490,6 +494,10 @@ if ($itemsCount < 1) { $allItemsHaveSelectedVendor=false; } else { foreach ($pur
 
                             <td class="border border-slate-300 px-3 py-3 text-right font-bold text-slate-950">
                                 {{ $item->stock !== null ? $formatQty($item->stock) : '-' }}
+                            </td>
+
+                            <td class="border border-slate-300 px-3 py-3 text-center text-slate-800">
+                                {{ $item->last_purchase_date ? $item->last_purchase_date->format('d M Y') : '-' }}
                             </td>
 
                             @if ($selectedVendorItem)

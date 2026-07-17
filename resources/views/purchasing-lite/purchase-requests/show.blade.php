@@ -1058,7 +1058,7 @@ $purchaseRequest->handover_remarks
     @endif
 
     <div class="overflow-x-auto">
-        <table class="border-collapse text-xs" style="width: {{ $canEditPurchasingPaymentSummary ? '2280px' : '1500px' }}; min-width: {{ $canEditPurchasingPaymentSummary ? '2280px' : '1500px' }}; table-layout: fixed;">
+        <table class="border-collapse text-xs" style="width: {{ $canEditPurchasingPaymentSummary ? '2410px' : '1630px' }}; min-width: {{ $canEditPurchasingPaymentSummary ? '2410px' : '1630px' }}; table-layout: fixed;">
             <thead>
                 <tr class="bg-slate-100">
                     <th style="width: 48px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
@@ -1087,6 +1087,10 @@ $purchaseRequest->handover_remarks
 
                     <th style="width: 70px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
                         Stock
+                    </th>
+
+                    <th style="width: 130px;" class="align-middle border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">
+                        Last Purchase
                     </th>
 
                     @if ($showSelectedVendorDetail)
@@ -1193,6 +1197,10 @@ $purchaseRequest->handover_remarks
 
                         <td class="align-middle border border-slate-300 px-2 py-2 text-right font-bold text-slate-950">
                             {{ $item->stock !== null ? $formatQty($item->stock) : '-' }}
+                        </td>
+
+                        <td class="align-middle border border-slate-300 px-2 py-2 text-center text-slate-800">
+                            {{ $item->last_purchase_date ? $item->last_purchase_date->format('d M Y') : '-' }}
                         </td>
 
                         @if ($showSelectedVendorDetail)

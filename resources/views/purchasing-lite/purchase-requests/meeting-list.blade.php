@@ -516,6 +516,11 @@ if ($quantity <= 0) { $quantity=1; } return $unitPrice * $quantity; }; $getGrand
                                         </span>
                                         {{ $item->unit ?: '' }}
                                         <span class="px-1 text-slate-400">|</span>
+                                        Last Purchase:
+                                        <span class="font-bold text-slate-950">
+                                            {{ $item->last_purchase_date ? $item->last_purchase_date->format('d M Y') : '-' }}
+                                        </span>
+                                        <span class="px-1 text-slate-400">|</span>
                                         Price / Item:
                                         <span class="font-bold text-slate-950">
                                             {{ $formatRupiah($itemUnitPrice) }}

@@ -58,7 +58,7 @@ $summaryRouteParams = empty($selectedPurchaseRequestIds) ? [] : ['purchase_reque
     @endif
 
     <div class="overflow-x-auto">
-        <table class="border-collapse text-xs" style="width: 2300px; min-width: 2300px; table-layout: fixed;">
+        <table class="border-collapse text-xs" style="width: 2430px; min-width: 2430px; table-layout: fixed;">
             <thead>
                 <tr class="bg-slate-100">
                     <th style="width: 46px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">No</th>
@@ -69,6 +69,7 @@ $summaryRouteParams = empty($selectedPurchaseRequestIds) ? [] : ['purchase_reque
                     <th style="width: 330px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Specification</th>
                     <th style="width: 60px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Qty</th>
                     <th style="width: 70px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Unit</th>
+                    <th style="width: 130px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Last Purchase</th>
                     <th style="width: 420px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Vendor</th>
                     <th style="width: 145px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Price / Unit</th>
                     <th style="width: 145px;" class="border border-slate-300 px-2 py-2 text-center font-bold text-slate-800">Total</th>
@@ -117,6 +118,7 @@ $summaryRouteParams = empty($selectedPurchaseRequestIds) ? [] : ['purchase_reque
                     <td class="border border-slate-300 px-2 py-2 text-slate-800">{{ $item->specification ?: '-' }}</td>
                     <td class="border border-slate-300 px-2 py-2 text-right text-slate-800">{{ $formatQty($item->quantity) }}</td>
                     <td class="border border-slate-300 px-2 py-2 text-slate-800">{{ $item->unit ?: '-' }}</td>
+                    <td class="border border-slate-300 px-2 py-2 text-center text-slate-800">{{ $item->last_purchase_date ? $item->last_purchase_date->format('d M Y') : '-' }}</td>
                     <td class="border border-slate-300 px-2 py-2">
                         @if ($canEditPaymentSummary)
                         <div class="grid grid-cols-3 gap-1.5">
